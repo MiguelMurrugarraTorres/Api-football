@@ -11,12 +11,16 @@ class MoreArticlesPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Más Noticias'),
+        title: const Text('Más Noticias'),
       ),
       body: ListView.builder(
         itemCount: articles.length,
         itemBuilder: (context, index) {
-          return ArticleCardWidget(article: articles[index]);
+          return ArticleCardWidget(
+            article: articles[index],
+            openWebView: (url) {
+            },
+          );
         },
       ),
     );

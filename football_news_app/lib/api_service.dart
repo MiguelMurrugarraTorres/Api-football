@@ -5,11 +5,12 @@ import 'article.dart';
 
 class ApiService {
   static const String baseUrl = 'https://pidelope.app/api';
+  //static const String baseUrl = 'http://172.16.21.127:3000/api';
 
   Future<List<Article>> fetchInitialArticles() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     try {
-      final response = await http.get(Uri.parse('$baseUrl/initial-articles'));
+      final response = await http.get(Uri.parse('$baseUrl/all-articles'));
 
       if (response.statusCode == 200) {
         Map<String, dynamic> jsonResponse = jsonDecode(response.body);
