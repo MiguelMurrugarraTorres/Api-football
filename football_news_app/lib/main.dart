@@ -1,26 +1,29 @@
 import 'dart:convert';
-import 'dart:io';
+import 'dart:io' as io; // 👈 alias para evitar conflicto con webview
 import 'package:flutter/material.dart';
 import 'package:football_news_app/api_service.dart';
 import 'package:football_news_app/article.dart';
 import 'package:football_news_app/article_card_widget.dart';
 import 'package:football_news_app/first_article_widget.dart';
 import 'package:football_news_app/all_articles_screen.dart';
+import 'package:football_news_app/search_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'bottom_navigation_widget.dart';
 
-class MyHttpOverrides extends HttpOverrides {
+// ⚠️ Solo para desarrollo: acepta todos los certificados.
+class MyHttpOverrides extends io.HttpOverrides {
   @override
-  HttpClient createHttpClient(SecurityContext? context) {
-    return super.createHttpClient(context)
-      ..badCertificateCallback =
-          (X509Certificate cert, String host, int port) => true;
+  io.HttpClient createHttpClient(io.SecurityContext? context) {
+    final client = super.createHttpClient(context);
+    client.badCertificateCallback =
+        (io.X509Certificate cert, String host, int port) => true;
+    return client;
   }
 }
 
 void main() {
-  HttpOverrides.global = MyHttpOverrides();
+  //io.HttpOverrides.global = MyHttpOverrides(); // ⚠️ quitar en producción
   runApp(MyApp());
 }
 
@@ -93,7 +96,7 @@ class MyHomePageState extends State<MyHomePage> {
       });
       fetchAllArticles();
     } catch (error) {
-      print('Error fetching initial articles: $error');
+      debugPrint('Error fetching initial articles: $error');
       setState(() {
         isLoading = false;
       });
@@ -121,7 +124,7 @@ class MyHomePageState extends State<MyHomePage> {
         categories = ['Inicio'] + fetchedCategories;
       });
     } catch (error) {
-      print('Error fetching categories: $error');
+      debugPrint('Error fetching categories: $error');
     }
   }
 
@@ -148,6 +151,21 @@ class MyHomePageState extends State<MyHomePage> {
           'PREMIERFOOTBALL',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.search),
+            onPressed: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SearchScreen()),
+              );
+              if (result is String && result.isNotEmpty) {
+                openWebView(
+                    result); // 👈 muestra WebView en el Home con tu barra
+              }
+            },
+          ),
+        ],
         leading: _webUrl != null
             ? IconButton(
                 icon: const Icon(Icons.arrow_back),

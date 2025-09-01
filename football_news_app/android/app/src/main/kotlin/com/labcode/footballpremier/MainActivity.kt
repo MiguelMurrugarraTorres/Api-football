@@ -1,4 +1,4 @@
-package com.example.football_news_app
+package com.labcode.footballpremier
 
 import io.flutter.embedding.android.FlutterActivity
 
