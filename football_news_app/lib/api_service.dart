@@ -9,7 +9,7 @@ class ApiService {
   Future<List<Article>> fetchInitialArticles() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     try {
-      final response = await http.get(Uri.parse('$baseUrl/initial-articles'));
+      final response = await http.get(Uri.parse('$baseUrl/all-articles'));
 
       if (response.statusCode == 200) {
         Map<String, dynamic> jsonResponse = jsonDecode(response.body);
@@ -79,6 +79,48 @@ class ApiService {
       }
     } else {
       throw Exception('Failed to load categories');
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> searchTeams(String query) async {
+    final response =
+        await http.get(Uri.parse('$baseUrl/search/equipos?q=$query'));
+
+    if (response.statusCode == 200) {
+      Map<String, dynamic> jsonResponse = jsonDecode(response.body);
+
+      if (jsonResponse['b_Activo']) {
+        List<dynamic> body = jsonResponse['lstResponseBody'];
+        return body
+            .map((dynamic item) => item as Map<String, dynamic>)
+            .toList();
+      } else {
+        throw Exception(
+            'Failed to load teams: ${jsonResponse['responseMessage']}');
+      }
+    } else {
+      throw Exception('Failed to load teams');
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> searchNews(String query) async {
+    final response =
+        await http.get(Uri.parse('$baseUrl/search/noticias?q=$query'));
+
+    if (response.statusCode == 200) {
+      Map<String, dynamic> jsonResponse = jsonDecode(response.body);
+
+      if (jsonResponse['b_Activo']) {
+        List<dynamic> body = jsonResponse['lstResponseBody'];
+        return body
+            .map((dynamic item) => item as Map<String, dynamic>)
+            .toList();
+      } else {
+        throw Exception(
+            'Failed to load news: ${jsonResponse['responseMessage']}');
+      }
+    } else {
+      throw Exception('Failed to load news');
     }
   }
 }

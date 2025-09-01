@@ -1,11 +1,13 @@
+// article.dart
 class Article {
   final String title;
   final String preview;
   final String imageUrl;
   final String source;
-  final int publishedTime; // Cambiado a int
+  final int publishedTime; // lo dejamos por compatibilidad
   final String imageUrlPublished;
   final String videoLink;
+  final String publishedTimeText; // ✅ NUEVO
 
   Article({
     required this.title,
@@ -15,17 +17,23 @@ class Article {
     required this.publishedTime,
     required this.imageUrlPublished,
     required this.videoLink,
+    required this.publishedTimeText, // ✅ NUEVO
   });
 
   factory Article.fromJson(Map<String, dynamic> json) {
     return Article(
-      title: json['title'],
-      preview: json['preview'],
-      imageUrl: json['imageUrl'],
-      source: json['source'],
-      publishedTime: json['publishedTime'],
-      imageUrlPublished: json['imageUrlPublished'],
-      videoLink: json['videoLink'],
+      title: (json['title'] ?? '').toString(),
+      preview: (json['preview'] ?? '').toString(),
+      imageUrl: (json['imageUrlMax'] ?? '').toString(),
+      source: (json['source'] ?? '').toString(),
+      // Si viene null, lo dejamos en 0. No lo usaremos para mostrar.
+      publishedTime: json['publishedTime'] is int
+          ? json['publishedTime'] as int
+          : int.tryParse('${json['publishedTime'] ?? 0}') ?? 0,
+      imageUrlPublished: (json['imageUrlPublished'] ?? '').toString(),
+      videoLink: (json['videoLink'] ?? '').toString(),
+      publishedTimeText:
+          (json['publishedTimeText'] ?? '').toString(), // ✅ NUEVO
     );
   }
 
@@ -33,11 +41,12 @@ class Article {
     return {
       'title': title,
       'preview': preview,
-      'imageUrl': imageUrl,
+      'imageUrlMax': imageUrl,
       'source': source,
       'publishedTime': publishedTime,
       'imageUrlPublished': imageUrlPublished,
       'videoLink': videoLink,
+      'publishedTimeText': publishedTimeText, // ✅ NUEVO
     };
   }
 }

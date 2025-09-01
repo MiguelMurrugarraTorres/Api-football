@@ -1,25 +1,29 @@
 import 'dart:convert';
-import 'dart:io';
+import 'dart:io' as io; // 👈 alias para evitar conflicto con webview
 import 'package:flutter/material.dart';
 import 'package:football_news_app/api_service.dart';
 import 'package:football_news_app/article.dart';
 import 'package:football_news_app/article_card_widget.dart';
 import 'package:football_news_app/first_article_widget.dart';
 import 'package:football_news_app/all_articles_screen.dart';
+import 'package:football_news_app/search_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 import 'bottom_navigation_widget.dart';
 
-class MyHttpOverrides extends HttpOverrides {
+// ⚠️ Solo para desarrollo: acepta todos los certificados.
+class MyHttpOverrides extends io.HttpOverrides {
   @override
-  HttpClient createHttpClient(SecurityContext? context) {
-    return super.createHttpClient(context)
-      ..badCertificateCallback =
-          (X509Certificate cert, String host, int port) => true;
+  io.HttpClient createHttpClient(io.SecurityContext? context) {
+    final client = super.createHttpClient(context);
+    client.badCertificateCallback =
+        (io.X509Certificate cert, String host, int port) => true;
+    return client;
   }
 }
 
 void main() {
-  HttpOverrides.global = MyHttpOverrides();
+  //io.HttpOverrides.global = MyHttpOverrides(); // ⚠️ quitar en producción
   runApp(MyApp());
 }
 
@@ -31,33 +35,40 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         primarySwatch: Colors.blue,
-        appBarTheme: AppBarTheme(
+        appBarTheme: const AppBarTheme(
           backgroundColor: Colors.white,
           foregroundColor: Colors.black,
         ),
       ),
-      home: MyHomePage(),
+      home: const MyHomePage(),
     );
   }
 }
 
 class MyHomePage extends StatefulWidget {
+  const MyHomePage({super.key});
+
   @override
-  _MyHomePageState createState() => _MyHomePageState();
+  MyHomePageState createState() => MyHomePageState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
+WebViewController? _inAppWebController; // arriba, como campo
+
+class MyHomePageState extends State<MyHomePage> {
   ApiService apiService = ApiService();
   List<Article> articles = [];
   List<Article> cachedArticles = [];
   bool isLoading = false;
   int _selectedIndex = 0;
+  String? _webUrl;
+  List<String> categories = ['Inicio'];
 
   @override
   void initState() {
     super.initState();
     loadCachedArticles();
-    fetchInitialArticles();
+    fetchAllArticles();
+    fetchCategories();
   }
 
   Future<void> loadCachedArticles() async {
@@ -85,7 +96,7 @@ class _MyHomePageState extends State<MyHomePage> {
       });
       fetchAllArticles();
     } catch (error) {
-      print('Error fetching initial articles: $error');
+      debugPrint('Error fetching initial articles: $error');
       setState(() {
         isLoading = false;
       });
@@ -94,76 +105,135 @@ class _MyHomePageState extends State<MyHomePage> {
 
   Future<void> fetchAllArticles() async {
     try {
-      List<Article> fetchedArticles = await apiService.fetchAllArticles();
+      final fetched = await apiService.fetchAllArticles();
       setState(() {
-        cachedArticles = fetchedArticles;
+        cachedArticles = fetched;
+        articles = fetched; // ✅ Home usa BD
+        isLoading = false;
       });
-    } catch (error) {
-      print('Error fetching all articles: $error');
+    } catch (e) {
+      debugPrint('Error fetching all articles: $e');
+      setState(() => isLoading = false);
     }
   }
 
-  Future<void> refreshArticles() async {
+  Future<void> fetchCategories() async {
     try {
-      List<Article> fetchedArticles = await apiService.fetchAllArticles();
+      List<String> fetchedCategories = await apiService.fetchCategories();
       setState(() {
-        cachedArticles = fetchedArticles;
-      });
-      setState(() {
-        articles = fetchedArticles.sublist(0, 7);
+        categories = ['Inicio'] + fetchedCategories;
       });
     } catch (error) {
-      print('Error refreshing articles: $error');
+      debugPrint('Error fetching categories: $error');
     }
   }
 
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
-      // Aquí puedes manejar la navegación entre las categorías
-      // Por ejemplo, puedes cambiar a la pantalla correspondiente basada en el índice seleccionado
+      _webUrl = null; // Si el usuario cambia de pestaña, ocultar el WebView
+    });
+  }
+
+  void openWebView(String url) {
+    setState(() {
+      _webUrl = url;
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    final displayed =
+        articles.length > 7 ? articles.take(7).toList() : articles;
     return Scaffold(
       appBar: AppBar(
-        title: Text('PREMIERFOOTBALL',
-            style: TextStyle(fontWeight: FontWeight.bold)),
-      ),
-      body: isLoading
-          ? Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: refreshArticles,
-              child: ListView.builder(
-                itemCount: articles.isEmpty ? 1 : articles.length + 1,
-                itemBuilder: (context, index) {
-                  if (articles.isEmpty) {
-                    return Center(child: Text('No articles available.'));
-                  } else if (index == 0) {
-                    return FirstArticleWidget(article: articles[index]);
-                  } else if (index == articles.length) {
-                    return Center(
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  AllArticlesScreen(articles: cachedArticles),
-                            ),
-                          );
-                        },
-                        child: Text('Ver más'),
-                      ),
-                    );
+        title: const Text(
+          'PREMIERFOOTBALL',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.search),
+            onPressed: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SearchScreen()),
+              );
+              if (result is String && result.isNotEmpty) {
+                openWebView(
+                    result); // 👈 muestra WebView en el Home con tu barra
+              }
+            },
+          ),
+        ],
+        leading: _webUrl != null
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () async {
+                  if (_inAppWebController != null &&
+                      await _inAppWebController!.canGoBack()) {
+                    _inAppWebController!.goBack();
                   } else {
-                    return ArticleCardWidget(article: articles[index]);
+                    setState(() => _webUrl = null);
                   }
                 },
-              ),
-            ),
+              )
+            : null,
+      ),
+      body: IndexedStack(
+        index: _webUrl == null ? _selectedIndex : 1,
+        children: [
+          isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : RefreshIndicator(
+                  onRefresh: fetchAllArticles,
+                  child: ListView.builder(
+                    itemCount: displayed.isEmpty ? 1 : displayed.length + 1,
+                    itemBuilder: (context, index) {
+                      if (displayed.isEmpty) {
+                        return const Center(
+                            child: Text('No articles available.'));
+                      } else if (index == 0) {
+                        return FirstArticleWidget(article: displayed[index]);
+                      } else if (index == displayed.length) {
+                        return Center(
+                          child: ElevatedButton(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => AllArticlesScreen(
+                                    articles: cachedArticles.isNotEmpty
+                                        ? cachedArticles
+                                        : articles,
+                                  ),
+                                ),
+                              );
+                            },
+                            child: const Text('Ver más'),
+                          ),
+                        );
+                      } else {
+                        return ArticleCardWidget(
+                          article: displayed[index],
+                          openWebView: openWebView,
+                        );
+                      }
+                    },
+                  ),
+                ),
+          _webUrl != null
+              ? SizedBox.expand(
+                  child: WebViewWidget(
+                    controller: (_inAppWebController = WebViewController()
+                      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+                      ..loadRequest(Uri.parse(_webUrl!))),
+                  ),
+                )
+              : const SizedBox.shrink(),
+          const Center(child: Text('Otra Sección')),
+        ],
+      ),
       bottomNavigationBar: BottomNavigationWidget(
         selectedIndex: _selectedIndex,
         onItemTapped: _onItemTapped,

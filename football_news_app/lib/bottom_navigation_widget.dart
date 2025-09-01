@@ -5,8 +5,10 @@ class BottomNavigationWidget extends StatefulWidget {
   final int selectedIndex;
   final Function(int) onItemTapped;
 
-  BottomNavigationWidget(
-      {required this.selectedIndex, required this.onItemTapped});
+  BottomNavigationWidget({
+    required this.selectedIndex,
+    required this.onItemTapped,
+  });
 
   @override
   _BottomNavigationWidgetState createState() => _BottomNavigationWidgetState();
@@ -27,12 +29,25 @@ class _BottomNavigationWidgetState extends State<BottomNavigationWidget> {
       List<String> fetchedCategories = await apiService.fetchCategories();
       setState(() {
         categories = ['Inicio'] + fetchedCategories;
+
+        // ✅ Si hay menos de 2 elementos, agregar una categoría extra
+        if (categories.length < 2) {
+          categories.add("Noticias"); // Categoría extra para evitar el error
+        }
       });
     } catch (error) {
       print('Error fetching categories: $error');
+
+      // ✅ Si hay error, asegurar que haya al menos 2 categorías
+      setState(() {
+        if (categories.length < 2) {
+          categories = ['Inicio', 'Noticias'];
+        }
+      });
     }
   }
 
+  // ✅ Mantiene los íconos personalizados
   IconData _getCategoryIcon(String category) {
     switch (category) {
       case 'Partidos':
@@ -43,6 +58,8 @@ class _BottomNavigationWidgetState extends State<BottomNavigationWidget> {
         return Icons.emoji_events;
       case 'TV':
         return Icons.tv;
+      case 'Apuestas':
+        return Icons.currency_bitcoin_outlined;
       default:
         return Icons.home;
     }
@@ -50,12 +67,19 @@ class _BottomNavigationWidgetState extends State<BottomNavigationWidget> {
 
   @override
   Widget build(BuildContext context) {
-    // Aseguramos que haya al menos dos elementos en categories
     if (categories.length < 2) {
-      return SizedBox
-          .shrink(); // Devuelve un widget vacío hasta que tengamos suficientes elementos
+      return const Center(
+          child:
+              CircularProgressIndicator()); // ✅ Mostrar indicador de carga temporalmente
     }
+
     return BottomNavigationBar(
+      type: BottomNavigationBarType
+          .fixed, // 👈 evita shifting: muestra todas las labels
+      showSelectedLabels:
+          true, // 👈 muestra la categoría también en seleccionados
+      showUnselectedLabels:
+          true, // 👈 muestra la categoría también en no seleccionados
       items: categories.map((category) {
         return BottomNavigationBarItem(
           icon: Icon(_getCategoryIcon(category)),
@@ -64,9 +88,7 @@ class _BottomNavigationWidgetState extends State<BottomNavigationWidget> {
       }).toList(),
       currentIndex: widget.selectedIndex,
       selectedItemColor: Colors.black,
-      unselectedItemColor: Colors.black,
-      selectedLabelStyle: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-      unselectedLabelStyle: TextStyle(fontSize: 12),
+      unselectedItemColor: Colors.grey,
       onTap: widget.onItemTapped,
     );
   }
