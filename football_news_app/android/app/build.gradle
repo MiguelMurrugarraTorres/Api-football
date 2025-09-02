@@ -23,6 +23,12 @@ if (flutterVersionName == null) {
     flutterVersionName = '1.0'
 }
 
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('key.properties') 
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
 android {
     namespace "com.labcode.footballpremier"
     compileSdkVersion 35
@@ -50,11 +56,37 @@ android {
         versionName flutterVersionName
     }
 
-    buildTypes {
-        release {
-            signingConfig signingConfigs.debug
+    signingConfigs {
+           release {
+               keyAlias keystoreProperties['keyAlias']
+               keyPassword keystoreProperties['keyPassword']
+               storeFile keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null
+               storePassword keystoreProperties['storePassword']
+               storeType 'pkcs12' 
+           }
+       }
+
+        buildTypes {
+            debug {
+                // Nada de firma personalizada: usa la debug por defecto
+                // (opcional) sufijo para diferenciar el paquete
+                applicationIdSuffix ".debug"
+                debuggable true
+            }
+
+            release {
+                // Aplica la firma solo si existe
+                if (keystorePropertiesFile.exists()) {
+                    signingConfig signingConfigs.release
+                }
+                // Ajustes de ofuscado/optimización (cámbialos si quieres)
+                minifyEnabled false
+                shrinkResources false
+                proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'),
+                            'proguard-rules.pro'
+            }
         }
-    }
+
 }
 
 flutter {
