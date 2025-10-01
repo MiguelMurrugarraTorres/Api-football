@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:webview_flutter/webview_flutter.dart';
-import 'article.dart';
+import 'package:football_news_app/data/models/article.dart';
+
+// ✅ usamos tu pestaña webview fallback unificada
+import 'package:football_news_app/features/webview/pages/in_app_webview_page.dart';
+
+// ✅ para usar openWebView(...) del Home
 import 'package:football_news_app/main.dart';
 
 class FirstArticleWidget extends StatelessWidget {
@@ -71,20 +75,29 @@ class FirstArticleWidget extends StatelessWidget {
   }
 
   void _launchURL(BuildContext context, String url) {
-    if (url.isEmpty) {
+    final link = url.trim();
+    if (link.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Enlace vacío')),
       );
       return;
     }
 
+    // Normaliza por si viniera sin esquema
+    final normalized =
+        (link.startsWith('http://') || link.startsWith('https://'))
+            ? link
+            : 'https://$link';
+
+    // 1) Si estamos bajo MyHomePage, usa su pestaña WebView y pasa el título
     final homeState = context.findAncestorStateOfType<MyHomePageState>();
     if (homeState != null) {
-      homeState.openWebView(url);
+      homeState.openWebView(normalized, title: article.title);
       return;
     }
 
-    final uri = Uri.tryParse(url);
+    // 2) Fallback: pantalla propia con título
+    final uri = Uri.tryParse(normalized);
     if (uri == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('URL inválida')),
@@ -94,15 +107,7 @@ class FirstArticleWidget extends StatelessWidget {
 
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) {
-          final controller = WebViewController()
-            ..setJavaScriptMode(JavaScriptMode.unrestricted)
-            ..loadRequest(uri);
-          return Scaffold(
-            appBar: AppBar(title: const Text('')),
-            body: WebViewWidget(controller: controller),
-          );
-        },
+        builder: (_) => InAppWebViewPage(uri: uri, title: article.title),
       ),
     );
   }

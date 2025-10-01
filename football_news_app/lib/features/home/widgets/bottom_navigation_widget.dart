@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:football_news_app/api_service.dart';
+import 'package:football_news_app/data/services/api_service.dart';
 
 class BottomNavigationWidget extends StatefulWidget {
   final int selectedIndex;

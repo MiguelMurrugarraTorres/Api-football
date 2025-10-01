@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'article.dart';
+import '../models/article.dart';
 
 class ApiService {
   static const String baseUrl = 'https://pidelope.app/api';
@@ -47,12 +47,15 @@ class ApiService {
     final response = await http.get(Uri.parse('$baseUrl/all-articles'));
 
     if (response.statusCode == 200) {
-      Map<String, dynamic> jsonResponse = jsonDecode(response.body);
-
+      final jsonResponse = jsonDecode(response.body);
       if (jsonResponse['b_Activo']) {
-        List<dynamic> body = jsonResponse['lstResponseBody'];
-        List<Article> articles =
-            body.map((dynamic item) => Article.fromJson(item)).toList();
+        final body = jsonResponse['lstResponseBody'] as List<dynamic>;
+        final articles = body.map((e) => Article.fromJson(e)).toList();
+
+        // ✅ Guarda también en cache
+        final prefs = await SharedPreferences.getInstance();
+        prefs.setString('initialArticles', jsonEncode(articles));
+
         return articles;
       } else {
         throw Exception(
@@ -122,5 +125,19 @@ class ApiService {
     } else {
       throw Exception('Failed to load news');
     }
+  }
+
+  Future<List<Article>> getCachedArticles({int limit = 10}) async {
+    final prefs = await SharedPreferences.getInstance();
+    final data = prefs.getString('initialArticles');
+    if (data == null) return [];
+
+    final List<dynamic> list = jsonDecode(data) as List<dynamic>;
+    final articles = list.map((e) => Article.fromJson(e)).toList();
+
+    if (limit > 0 && articles.length > limit) {
+      return articles.take(limit).toList();
+    }
+    return articles;
   }
 }

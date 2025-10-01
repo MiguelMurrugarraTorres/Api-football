@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:football_news_app/api_service.dart';
-import 'package:football_news_app/main.dart'; // para MyHomePageState.openWebView
-import 'package:webview_flutter/webview_flutter.dart'; // fallback WebView
-import 'bottom_navigation_widget.dart';
+import 'package:football_news_app/data/models/article.dart';
+import 'package:football_news_app/data/services/api_service.dart';
+import 'package:football_news_app/features/home/widgets/bottom_navigation_widget.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -16,16 +15,45 @@ class _SearchScreenState extends State<SearchScreen> {
   final TextEditingController _searchController = TextEditingController();
 
   bool _isSearching = false;
+
+  // Resultados de búsqueda
   List<Map<String, dynamic>> teams = [];
   List<Map<String, dynamic>> news = [];
 
-  // Índice de la barra inferior en esta pantalla. Normalmente el Home es "Inicio" (0).
+  // Sugerencias desde cache (artículos)
+  List<Article> suggestions = [];
+  bool _loadedSuggestions = false;
+
   int _selectedIndexBottom = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSuggestions();
+  }
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadSuggestions() async {
+    try {
+      // Cargamos hasta 10 sugerencias desde el cache
+      final cached = await apiService.getCachedArticles(limit: 10);
+      // Filtra artículos sin link utilizable
+      final usable = cached.where((a) => (a.videoLink).trim().isNotEmpty).toList();
+      if (!mounted) return;
+      setState(() {
+        suggestions = usable;
+        _loadedSuggestions = true;
+      });
+    } catch (e) {
+      debugPrint('Error loading suggestions: $e');
+      if (!mounted) return;
+      setState(() => _loadedSuggestions = true); // evita spinner infinito
+    }
   }
 
   Future<void> _search([String? raw]) async {
@@ -54,14 +82,24 @@ class _SearchScreenState extends State<SearchScreen> {
     }
   }
 
-  void _openUrl(String url) {
-    if (url.isEmpty) {
+  // Devolver {url, title} al Home
+  void _returnResult({required String url, required String title}) {
+    final link = url.trim();
+    if (link.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Enlace vacío')),
       );
       return;
     }
-    Navigator.pop(context, url); // 👈 devolvemos la URL al Home
+
+    final normalized = (link.startsWith('http://') || link.startsWith('https://'))
+        ? link
+        : 'https://$link';
+
+    Navigator.pop(context, {
+      'url': normalized,
+      'title': title,
+    });
   }
 
   Widget _buildTeamCard(Map<String, dynamic> team) {
@@ -71,10 +109,15 @@ class _SearchScreenState extends State<SearchScreen> {
 
     return ListTile(
       leading: img != null && img.isNotEmpty
-          ? Image.network(img, width: 50, height: 50)
+          ? Image.network(
+              img,
+              width: 50,
+              height: 50,
+              errorBuilder: (_, __, ___) => const Icon(Icons.group),
+            )
           : const Icon(Icons.group),
       title: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis),
-      onTap: () => _openUrl(link),
+      onTap: () => _returnResult(url: link, title: title),
     );
   }
 
@@ -85,27 +128,49 @@ class _SearchScreenState extends State<SearchScreen> {
 
     return ListTile(
       leading: img != null && img.isNotEmpty
-          ? Image.network(img, width: 50, height: 50)
+          ? Image.network(
+              img,
+              width: 50,
+              height: 50,
+              errorBuilder: (_, __, ___) => const Icon(Icons.article),
+            )
           : const Icon(Icons.article),
       title: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis),
-      onTap: () => _openUrl(link),
+      onTap: () => _returnResult(url: link, title: title),
+    );
+  }
+
+  // Sugerencias desde cache (artículos)
+  Widget _buildSuggestionTile(Article a) {
+    return ListTile(
+      leading: (a.imageUrl.isNotEmpty)
+          ? Image.network(
+              a.imageUrl,
+              width: 50,
+              height: 50,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => const Icon(Icons.image_outlined),
+            )
+          : const Icon(Icons.image_outlined),
+      title: Text(
+        a.title,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+      subtitle: Text(
+        a.source,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontSize: 12),
+      ),
+      onTap: () => _returnResult(url: a.videoLink, title: a.title),
     );
   }
 
   void _onBottomItemTapped(int index) {
     setState(() => _selectedIndexBottom = index);
-
-    // Si eligen otra pestaña, volvemos al Home.
     if (index != 0) {
-      // OPCIONAL: si en MyHomePageState agregas un método público setTab(int i),
-      // puedes seleccionar la pestaña al volver:
-      //
-      // final homeState = context.findAncestorStateOfType<MyHomePageState>();
-      // if (homeState != null) {
-      //   homeState.setTab(index); // <- crea este método público en tu Home si lo deseas
-      // }
-
-      Navigator.of(context).pop(); // regresamos al Home
+      Navigator.of(context).pop();
     }
   }
 
@@ -186,13 +251,39 @@ class _SearchScreenState extends State<SearchScreen> {
                     ],
                   ),
                 )
-              : const Center(
-                  child: Text(
-                    'Busca equipos o noticias',
-                    style: TextStyle(color: Colors.black54),
-                  ),
-                ),
-      // 👇 Barra inferior consistente con el Home
+              : (_loadedSuggestions && suggestions.isNotEmpty)
+                  ? RefreshIndicator(
+                      onRefresh: () async => _loadSuggestions(),
+                      child: ListView(
+                        children: [
+                          const Padding(
+                            padding: EdgeInsets.all(8.0),
+                            child: Text(
+                              'SUGERENCIAS',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
+                              ),
+                            ),
+                          ),
+                          ...suggestions.map(_buildSuggestionTile),
+                          const SizedBox(height: 24),
+                          const Center(
+                            child: Text(
+                              'Tip: usa el buscador para encontrar equipos o noticias específicas',
+                              style: TextStyle(color: Colors.black54),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                        ],
+                      ),
+                    )
+                  : const Center(
+                      child: Text(
+                        'Busca equipos o noticias',
+                        style: TextStyle(color: Colors.black54),
+                      ),
+                    ),
       bottomNavigationBar: BottomNavigationWidget(
         selectedIndex: _selectedIndexBottom,
         onItemTapped: _onBottomItemTapped,

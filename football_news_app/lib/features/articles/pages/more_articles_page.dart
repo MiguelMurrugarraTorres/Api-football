@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:football_news_app/article.dart';
-import 'package:football_news_app/article_card_widget.dart';
+import 'package:football_news_app/data/models/article.dart';
+import 'package:football_news_app/features/home/widgets/article_card_widget.dart';
+
 
 class MoreArticlesPage extends StatelessWidget {
   final List<Article> articles;

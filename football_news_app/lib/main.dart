@@ -1,15 +1,16 @@
 import 'dart:convert';
 import 'dart:io' as io; // 👈 alias para evitar conflicto con webview
 import 'package:flutter/material.dart';
-import 'package:football_news_app/api_service.dart';
-import 'package:football_news_app/article.dart';
-import 'package:football_news_app/article_card_widget.dart';
-import 'package:football_news_app/first_article_widget.dart';
-import 'package:football_news_app/all_articles_screen.dart';
-import 'package:football_news_app/search_screen.dart';
+import 'package:football_news_app/data/services/api_service.dart';
+import 'package:football_news_app/data/models/article.dart';
+import 'package:football_news_app/features/articles/pages/all_articles_screen.dart';
+import 'package:football_news_app/features/articles/pages/search_screen.dart';
+import 'package:football_news_app/shared/widgets/extensions/under_construction.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:webview_flutter/webview_flutter.dart';
-import 'bottom_navigation_widget.dart';
+import 'features/home/widgets/article_card_widget.dart';
+import 'features/home/widgets/bottom_navigation_widget.dart';
+import 'features/home/widgets/first_article_widget.dart';
 
 // ⚠️ Solo para desarrollo: acepta todos los certificados.
 class MyHttpOverrides extends io.HttpOverrides {
@@ -23,11 +24,13 @@ class MyHttpOverrides extends io.HttpOverrides {
 }
 
 void main() {
-  //io.HttpOverrides.global = MyHttpOverrides(); // ⚠️ quitar en producción
+  // io.HttpOverrides.global = MyHttpOverrides(); // ⚠️ quitar en producción
   runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -52,15 +55,20 @@ class MyHomePage extends StatefulWidget {
   MyHomePageState createState() => MyHomePageState();
 }
 
-WebViewController? _inAppWebController; // arriba, como campo
-
 class MyHomePageState extends State<MyHomePage> {
-  ApiService apiService = ApiService();
+  final ApiService apiService = ApiService();
+
   List<Article> articles = [];
   List<Article> cachedArticles = [];
   bool isLoading = false;
+
   int _selectedIndex = 0;
+
+  // 👉 Estado para el tab WebView integrado
   String? _webUrl;
+  String? _webTitle;                  // 🔹 nuevo: título opcional para el AppBar del WebView
+  WebViewController? _inAppWebController;
+
   List<String> categories = ['Inicio'];
 
   @override
@@ -72,14 +80,14 @@ class MyHomePageState extends State<MyHomePage> {
   }
 
   Future<void> loadCachedArticles() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    String? cachedData = prefs.getString('initialArticles');
+    final prefs = await SharedPreferences.getInstance();
+    final cachedData = prefs.getString('initialArticles');
     if (cachedData != null) {
-      List<Article> cachedArticles = (jsonDecode(cachedData) as List)
+      final List<Article> cached = (jsonDecode(cachedData) as List)
           .map((data) => Article.fromJson(data))
           .toList();
       setState(() {
-        articles = cachedArticles;
+        articles = cached;
       });
     }
   }
@@ -89,7 +97,7 @@ class MyHomePageState extends State<MyHomePage> {
       isLoading = true;
     });
     try {
-      List<Article> fetchedArticles = await apiService.fetchInitialArticles();
+      final fetchedArticles = await apiService.fetchInitialArticles();
       setState(() {
         articles = fetchedArticles;
         isLoading = false;
@@ -119,25 +127,43 @@ class MyHomePageState extends State<MyHomePage> {
 
   Future<void> fetchCategories() async {
     try {
-      List<String> fetchedCategories = await apiService.fetchCategories();
+      final fetchedCategories = await apiService.fetchCategories();
       setState(() {
-        categories = ['Inicio'] + fetchedCategories;
+        categories = ['Inicio', ...fetchedCategories];
       });
     } catch (error) {
       debugPrint('Error fetching categories: $error');
     }
   }
 
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-      _webUrl = null; // Si el usuario cambia de pestaña, ocultar el WebView
-    });
-  }
 
-  void openWebView(String url) {
+String? _wipCategory; // nombre de la categoría seleccionada (≠ Inicio)
+
+void _onItemTapped(int index) {
+  setState(() {
+    if (index == 0) {
+      _selectedIndex = 0;
+      _wipCategory = null;
+      _webUrl = null;
+      _webTitle = null;
+    } else {
+      // siempre mostramos el placeholder en el child #2
+      _selectedIndex = 2;
+      _webUrl = null;
+      _webTitle = null;
+      // usa las categorías que ya cargas en MyHomePage
+      _wipCategory = (index < categories.length) ? categories[index] : null;
+    }
+  });
+}
+
+
+  // 🔹 Opción A: agrega título opcional
+  void openWebView(String url, {String? title}) {
     setState(() {
       _webUrl = url;
+      _webTitle = title; // puede venir nulo y no pasa nada
+      // Nota: el IndexedStack ya muestra el WebView cuando _webUrl != null
     });
   }
 
@@ -145,11 +171,20 @@ class MyHomePageState extends State<MyHomePage> {
   Widget build(BuildContext context) {
     final displayed =
         articles.length > 7 ? articles.take(7).toList() : articles;
+
+    // Título dinámico: muestra el del artículo cuando estás en WebView
+      String appBarTitle;
+      if (_webUrl != null) {
+        appBarTitle = _webTitle ?? 'PREMIERFOOTBALL';
+      } else {
+        appBarTitle = 'PREMIERFOOTBALL';
+      }
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'PREMIERFOOTBALL',
-          style: TextStyle(fontWeight: FontWeight.bold),
+        title: Text(
+          appBarTitle,
+          style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         actions: [
           IconButton(
@@ -160,8 +195,7 @@ class MyHomePageState extends State<MyHomePage> {
                 MaterialPageRoute(builder: (_) => const SearchScreen()),
               );
               if (result is String && result.isNotEmpty) {
-                openWebView(
-                    result); // 👈 muestra WebView en el Home con tu barra
+                openWebView(result); // puedes pasar title: si lo tienes
               }
             },
           ),
@@ -174,7 +208,10 @@ class MyHomePageState extends State<MyHomePage> {
                       await _inAppWebController!.canGoBack()) {
                     _inAppWebController!.goBack();
                   } else {
-                    setState(() => _webUrl = null);
+                    setState(() {
+                      _webUrl = null;
+                      _webTitle = null;
+                    });
                   }
                 },
               )
@@ -183,6 +220,7 @@ class MyHomePageState extends State<MyHomePage> {
       body: IndexedStack(
         index: _webUrl == null ? _selectedIndex : 1,
         children: [
+          // 0) Home
           isLoading
               ? const Center(child: CircularProgressIndicator())
               : RefreshIndicator(
@@ -192,7 +230,11 @@ class MyHomePageState extends State<MyHomePage> {
                     itemBuilder: (context, index) {
                       if (displayed.isEmpty) {
                         return const Center(
-                            child: Text('No articles available.'));
+                          child: Padding(
+                            padding: EdgeInsets.all(24.0),
+                            child: Text('No articles available.'),
+                          ),
+                        );
                       } else if (index == 0) {
                         return FirstArticleWidget(article: displayed[index]);
                       } else if (index == displayed.length) {
@@ -216,12 +258,15 @@ class MyHomePageState extends State<MyHomePage> {
                       } else {
                         return ArticleCardWidget(
                           article: displayed[index],
+                          // Desde Home, normalmente no pasas título (igual soporta el param)
                           openWebView: openWebView,
                         );
                       }
                     },
                   ),
                 ),
+
+          // 1) WebView integrado en el IndexedStack
           _webUrl != null
               ? SizedBox.expand(
                   child: WebViewWidget(
@@ -231,7 +276,12 @@ class MyHomePageState extends State<MyHomePage> {
                   ),
                 )
               : const SizedBox.shrink(),
-          const Center(child: Text('Otra Sección')),
+
+          // 2) Otra Sección (placeholder)
+          UnderConstruction(
+  label: _wipCategory,
+  onGoHome: () => _onItemTapped(0),
+),
         ],
       ),
       bottomNavigationBar: BottomNavigationWidget(

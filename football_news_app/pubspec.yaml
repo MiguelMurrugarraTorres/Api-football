@@ -2,7 +2,7 @@ name: football_news_app
 description: A new Flutter project.
 
 publish_to: 'none'
-version: 1.0.1+5
+version: 1.0.4+7
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
@@ -12,24 +12,26 @@ dependencies:
     sdk: flutter
 
   cupertino_icons: ^1.0.2
-  http: ^1.1.0                # compatible con Dart 3.2.5
-  url_launcher: ^6.2.4        # compatible con 3.16
-  shared_preferences: ^2.2.3  # evita el requisito de Dart >=3.3.0
+  http: ^1.1.0
+  url_launcher: ^6.2.4
+  shared_preferences: ^2.2.3
   pull_to_refresh: ^2.0.0
-  webview_flutter: ^4.4.2     # estable para 3.16
-  #flutter_launcher_icons: ^0.13.1 # dart run flutter_launcher_icons para generar iconos
-
+  webview_flutter: ^4.4.2
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^2.0.3     # apto para Dart 3.2.5
+  flutter_lints: ^2.0.3
+  flutter_launcher_icons: ^0.13.1
 
 flutter_icons:
-  android: "launcher_icon"
-  ios: true
+  android: "launcher_icon"        # nombre del recurso Android
+  ios: true                       # genera también para iOS (puedes poner false si no lo necesitas)
   image_path: "assets/Primerfoot_icon.png"
   image_path_ios: "assets/Primerfoot_icon.png"
+  # --- Opcional (si quieres icono adaptativo en Android 8+):
+  # adaptive_icon_background: "#FFFFFF"             # o "assets/icon_bg.png"
+  # adaptive_icon_foreground: "assets/icon_fg.png"  # tu logo recortado
 
 flutter:
   uses-material-design: true
