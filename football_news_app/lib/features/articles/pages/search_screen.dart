@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:football_news_app/data/models/article.dart';
 import 'package:football_news_app/data/services/api_service.dart';
 import 'package:football_news_app/features/home/widgets/bottom_navigation_widget.dart';
+import 'package:football_news_app/features/webview/pages/in_app_webview_page.dart'; // Asegúrate de importar la página de WebView
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -43,7 +44,8 @@ class _SearchScreenState extends State<SearchScreen> {
       // Cargamos hasta 10 sugerencias desde el cache
       final cached = await apiService.getCachedArticles(limit: 10);
       // Filtra artículos sin link utilizable
-      final usable = cached.where((a) => (a.videoLink).trim().isNotEmpty).toList();
+      final usable =
+          cached.where((a) => (a.videoLink).trim().isNotEmpty).toList();
       if (!mounted) return;
       setState(() {
         suggestions = usable;
@@ -82,7 +84,7 @@ class _SearchScreenState extends State<SearchScreen> {
     }
   }
 
-  // Devolver {url, title} al Home
+  // Devolver {url, title} al WebView directamente
   void _returnResult({required String url, required String title}) {
     final link = url.trim();
     if (link.isEmpty) {
@@ -92,14 +94,19 @@ class _SearchScreenState extends State<SearchScreen> {
       return;
     }
 
-    final normalized = (link.startsWith('http://') || link.startsWith('https://'))
-        ? link
-        : 'https://$link';
+    final normalized =
+        (link.startsWith('http://') || link.startsWith('https://'))
+            ? link
+            : 'https://$link';
 
-    Navigator.pop(context, {
-      'url': normalized,
-      'title': title,
-    });
+    // Abre el WebView directamente en la misma pantalla de búsqueda
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            InAppWebViewPage(uri: Uri.parse(normalized), title: title),
+      ),
+    );
   }
 
   Widget _buildTeamCard(Map<String, dynamic> team) {

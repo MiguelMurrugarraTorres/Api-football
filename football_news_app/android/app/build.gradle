@@ -31,7 +31,7 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace "com.labcode.footballpremier"
-    compileSdkVersion 35
+    compileSdkVersion 36
     ndkVersion "26.1.10909125"
 
     compileOptions {
