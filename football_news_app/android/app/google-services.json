@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "442818021320",
+    "project_id": "packagestore-67c73",
+    "storage_bucket": "packagestore-67c73.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:442818021320:android:9abcffbaba884f5d21e2fd",
+        "android_client_info": {
+          "package_name": "com.labcode.footballpremier"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyARRoW9SP2RT06-Lx_pp-Zl7T9eERNVLvo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:442818021320:android:31af3909335dcbf621e2fd",
+        "android_client_info": {
+          "package_name": "com.pidelo.pe"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyARRoW9SP2RT06-Lx_pp-Zl7T9eERNVLvo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

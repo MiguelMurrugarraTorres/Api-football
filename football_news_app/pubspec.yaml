@@ -2,7 +2,7 @@ name: football_news_app
 description: A new Flutter project.
 
 publish_to: 'none'
-version: 1.0.4+7
+version: 1.0.5+8
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
@@ -17,6 +17,9 @@ dependencies:
   shared_preferences: ^2.2.3
   pull_to_refresh: ^2.0.0
   webview_flutter: ^4.4.2
+  firebase_core: ^2.27.0
+  firebase_messaging: ^14.7.10
+  flutter_local_notifications: ^17.1.2
 
 dev_dependencies:
   flutter_test:
@@ -35,3 +38,5 @@ flutter_icons:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/Primerfoot_icon.png
