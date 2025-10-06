@@ -1,23 +1,34 @@
+// lib/main.dart
 import 'dart:convert';
 import 'dart:io' as io;
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
+// Tu modelo/servicios existentes
 import 'package:football_news_app/data/models/article.dart';
 import 'package:football_news_app/data/services/api_service.dart';
+
+// Pantallas existentes
 import 'package:football_news_app/features/articles/pages/all_articles_screen.dart';
 import 'package:football_news_app/features/articles/pages/search_screen.dart';
 import 'package:football_news_app/features/home/pages/splash_screen.dart';
 import 'package:football_news_app/shared/widgets/extensions/under_construction.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:webview_flutter/webview_flutter.dart';
 
+// Widgets de Home (no tocados)
 import 'features/home/widgets/article_card_widget.dart';
 import 'features/home/widgets/bottom_navigation_widget.dart';
 import 'features/home/widgets/first_article_widget.dart';
+
+// NUEVO: constantes + servicios de auth/push
+import 'package:football_news_app/data/services/push_service.dart';
+
+
+import 'package:football_news_app/core/notifications/local_notifications.dart';
+import 'package:football_news_app/core/notifications/fcm_background.dart';
 
 /// ⚠️ Solo desarrollo: aceptar todos los certificados.
 class MyHttpOverrides extends io.HttpOverrides {
@@ -30,62 +41,21 @@ class MyHttpOverrides extends io.HttpOverrides {
   }
 }
 
-/// ---------- Notificaciones: setup global ----------
+/// ---------- Notificaciones locales (canal Android) ----------
 
-@pragma('vm:entry-point')
-Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // Se llama cuando llega una push con la app en background/terminada
-  await Firebase.initializeApp();
-  // Aquí puedes hacer logging si quieres
-}
 
-// Canal Android para mostrar notifs locales cuando la app está en foreground
-const AndroidNotificationChannel _androidChannel = AndroidNotificationChannel(
-  'high_importance_channel',
-  'High Importance Notifications',
-  description: 'Canal para notificaciones importantes',
-  importance: Importance.high,
-);
 
-final FlutterLocalNotificationsPlugin _localNotifs =
-    FlutterLocalNotificationsPlugin();
 
-Future<void> _setupLocalNotifications() async {
-  const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
-  const init = InitializationSettings(android: androidInit);
-
-  await _localNotifs.initialize(init
-      // Si quieres abrir una URL al tocar una notif local en foreground,
-      // añade onDidReceiveNotificationResponse y maneja un payload.
-      // , onDidReceiveNotificationResponse: (resp) {
-      //   final payload = resp.payload;
-      //   // aquí podrías guardar el payload globalmente y consumirlo luego.
-      // }
-      );
-
-  await _localNotifs
-      .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin>()
-      ?.createNotificationChannel(_androidChannel);
-}
-
-Future<void> _requestNotificationPermission() async {
-  final settings = await FirebaseMessaging.instance.requestPermission(
-    alert: true,
-    badge: true,
-    sound: true,
-  );
-  debugPrint('Permiso notificaciones: ${settings.authorizationStatus}');
-}
+/// GlobalKey para poder abrir el WebView integrado desde PushService
+final GlobalKey<MyHomePageState> homeKey = GlobalKey<MyHomePageState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
+  io.HttpOverrides.global = MyHttpOverrides(); // si lo usas en dev
 
-  // Handlers globales
-  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-  await _setupLocalNotifications();
-  await _requestNotificationPermission();
+  await Firebase.initializeApp();
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  await setupLocalNotifications();
 
   runApp(const MyApp());
 }
@@ -93,8 +63,28 @@ Future<void> main() async {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
+  static bool _pushInit = false; // 👈 guard
+
   @override
   Widget build(BuildContext context) {
+    // Inicializamos PushService (idempotente, pero registramos SOLO una vez)
+    final push = PushService(localNotifs, androidHighImportanceChannel);
+
+    if (!_pushInit) {
+      _pushInit = true;
+
+      // Enlaza taps de notificación -> abrir WebView del Home
+      push.bindNotificationTaps(
+        openFromOutside: (url, {String? title}) async {
+          final state = homeKey.currentState;
+          if (state != null) state.openWebView(url, title: title);
+        },
+      );
+
+      // Pide permisos, obtiene token y registra device en backend
+      push.initAndRegister();
+    }
+
     return MaterialApp(
       title: 'Football News App',
       debugShowCheckedModeBanner: false,
@@ -110,6 +100,8 @@ class MyApp extends StatelessWidget {
   }
 }
 
+
+/// ===================== HOME=====================
 class MyHomePage extends StatefulWidget {
   const MyHomePage({super.key});
 
@@ -138,68 +130,13 @@ class MyHomePageState extends State<MyHomePage> {
   void initState() {
     super.initState();
     _initData();
-    _setupFCMCallbacks(); // 👈 inicializa handlers FCM
+    // ✅ Eliminado: _setupFCMCallbacks();  (lo maneja PushService en MyApp)
   }
 
   Future<void> _initData() async {
     await loadCachedArticles();
     await fetchAllArticles();
     await fetchCategories();
-  }
-
-  /// ---------- FCM: listeners que abren el WebView ----------
-  void _setupFCMCallbacks() async {
-    // (Opcional) suscripción a un topic
-    await FirebaseMessaging.instance.subscribeToTopic('news');
-
-    // 1) Si la app se abre desde terminada por una push (cold start)
-    final initialMsg = await FirebaseMessaging.instance.getInitialMessage();
-    if (initialMsg != null) {
-      _handleNotificationTap(initialMsg);
-    }
-
-    // 2) Tap en una notificación cuando la app estaba en background
-    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-      _handleNotificationTap(message);
-    });
-
-    // 3) Mensajes en foreground -> muestra notificación local
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
-      final notif = message.notification;
-      final android = notif?.android;
-      if (notif != null && android != null) {
-        await _localNotifs.show(
-          notif.hashCode,
-          notif.title,
-          notif.body,
-          NotificationDetails(
-            android: AndroidNotificationDetails(
-              _androidChannel.id,
-              _androidChannel.name,
-              channelDescription: _androidChannel.description,
-              icon: '@mipmap/ic_launcher',
-            ),
-          ),
-          payload: message.data['url'], // si quieres usarlo luego
-        );
-      }
-    });
-  }
-
-  void _handleNotificationTap(RemoteMessage message) {
-    final data = message.data;
-    final String? url = (data['url'] ?? '').toString().trim().isEmpty
-        ? null
-        : data['url'] as String;
-    final String? title = (data['title'] as String?)?.trim();
-
-    if (url != null) {
-      // Normaliza
-      final normalized = (url.startsWith('http://') || url.startsWith('https://'))
-          ? url
-          : 'https://$url';
-      openWebView(normalized, title: title ?? message.notification?.title);
-    }
   }
 
   // ------------------ DATA ------------------
@@ -219,6 +156,7 @@ class MyHomePageState extends State<MyHomePage> {
 
   Future<void> fetchAllArticles() async {
     try {
+      setState(() => isLoading = true);
       final fetched = await apiService.fetchAllArticles();
       setState(() {
         cachedArticles = fetched;
@@ -260,7 +198,7 @@ class MyHomePageState extends State<MyHomePage> {
     });
   }
 
-  void openWebView(String url, {String? title}) {
+  Future<void> openWebView(String url, {String? title}) async {
     setState(() {
       _webUrl = url;
       _webTitle = title;

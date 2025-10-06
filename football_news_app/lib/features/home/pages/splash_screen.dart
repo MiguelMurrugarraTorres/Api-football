@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:football_news_app/main.dart';
+import 'package:football_news_app/main.dart'; // usa homeKey y MyHomePage
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -30,7 +30,7 @@ class _SplashScreenState extends State<SplashScreen>
     await Future.delayed(const Duration(seconds: 3));
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const MyHomePage()),
+      MaterialPageRoute(builder: (_) => MyHomePage(key: homeKey)), // 👈 aquí
     );
   }
 
@@ -44,7 +44,7 @@ class _SplashScreenState extends State<SplashScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        color: Color.fromARGB(255, 245, 245, 245),
+        color: const Color.fromARGB(255, 245, 245, 245),
         alignment: Alignment.center,
         child: FadeTransition(
           opacity: _anim,
