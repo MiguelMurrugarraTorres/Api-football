@@ -1,8 +1,15 @@
 // lib/features/matches/pages/matches_screen.dart
+import 'dart:collection';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+
 import 'package:football_news_app/data/models/match.dart';
 import 'package:football_news_app/data/services/api_service.dart';
+
+import 'package:football_news_app/features/home/widgets/bottom_navigation_widget.dart';
+import 'package:football_news_app/features/webview/pages/in_app_webview_page.dart';
+import 'package:football_news_app/main.dart'; // homeKey para abrir WebView integrado
 
 class MatchesScreen extends StatefulWidget {
   const MatchesScreen({super.key});
@@ -79,10 +86,11 @@ class _MatchesScreenState extends State<MatchesScreen> {
 
   Future<void> _pullRefresh() async => _loadFor(_selected);
 
-  Map<String, List<MatchItem>> _groupByLeague(List<MatchItem> list) {
-    final map = <String, List<MatchItem>>{};
+  /// ✔️ Preserva el orden que envía el backend (no ordenar aquí).
+  LinkedHashMap<String, List<MatchItem>> _groupByLeague(List<MatchItem> list) {
+    final map = LinkedHashMap<String, List<MatchItem>>();
     for (final m in list) {
-      (map[m.compName] ??= []).add(m);
+      (map[m.compName] ??= <MatchItem>[]).add(m);
     }
     return map;
   }
@@ -105,9 +113,43 @@ class _MatchesScreenState extends State<MatchesScreen> {
     }
   }
 
-  bool _isNotStarted(String status) {
-    final s = status.toUpperCase();
-    return s == 'NS' || s.contains('POR EMPEZAR') || s.contains('NO INICIA');
+  bool _isNotStarted(String statusOrText) {
+    final s = (statusOrText).toUpperCase();
+    return s == 'NS' ||
+        s.contains('POR EMPEZAR') ||
+        s.contains('NO INICIA') ||
+        s.contains('SCHEDULED');
+  }
+
+  bool _shouldMarkSuspended(MatchItem m) {
+    final st = m.statusText.trim();
+    final hs = m.homeScore ?? 0;
+    final as_ = m.awayScore ?? 0;
+    // Si statusText viene vacío/null y score 0-0 → lo consideramos "Suspendido"
+    return (st.isEmpty) && (hs == 0 && as_ == 0);
+  }
+
+  _StatusDisplay _computeStatus(MatchItem m) {
+    // 1) Está en vivo (minuto desde backend)
+    if ((m.liveMinuteText ?? '').isNotEmpty) {
+      return _StatusDisplay(m.liveMinuteText!, _StatusKind.live);
+    }
+
+    // 2) Si viene statusText vacío y 0-0 => Suspendido
+    if (_shouldMarkSuspended(m)) {
+      return const _StatusDisplay('Suspendido', _StatusKind.suspended);
+    }
+
+    // 3) Por empezar (usa hora local)
+    final textPref = (m.statusText.isNotEmpty ? m.statusText : m.status);
+    if (_isNotStarted(textPref)) {
+      final hhmm = _formatKickoffLocal(m.kickoffUtc);
+      return _StatusDisplay(
+          hhmm.isNotEmpty ? hhmm : 'Programado', _StatusKind.time);
+    }
+
+    // 4) Sino, muestra statusText/status tal cual
+    return _StatusDisplay(textPref, _StatusKind.other);
   }
 
   @override
@@ -120,8 +162,7 @@ class _MatchesScreenState extends State<MatchesScreen> {
                 ? _EmptyState(dateLabel: _selected.label)
                 : _MatchesGroupedList(
                     grouped: _groupByLeague(_matches),
-                    formatKickoffLocal: _formatKickoffLocal,
-                    isNotStarted: _isNotStarted,
+                    computeStatus: _computeStatus,
                   );
 
     return Scaffold(
@@ -155,6 +196,15 @@ class _MatchesScreenState extends State<MatchesScreen> {
           }),
           const SizedBox(height: 4),
         ],
+      ),
+      bottomNavigationBar: BottomNavigationWidget(
+        selectedIndex: 0,
+        selectedLabel: 'Partidos',
+        onItemTapped: (i) {
+          if (i == 0) {
+            Navigator.of(context).pushReplacementNamed('/home');
+          }
+        },
       ),
     );
   }
@@ -204,19 +254,17 @@ class _DateChipsBar extends StatelessWidget {
 }
 
 class _MatchesGroupedList extends StatelessWidget {
-  final Map<String, List<MatchItem>> grouped;
-  final String Function(String kickoffUtc) formatKickoffLocal;
-  final bool Function(String status) isNotStarted;
+  final LinkedHashMap<String, List<MatchItem>> grouped;
+  final _StatusDisplay Function(MatchItem) computeStatus;
 
   const _MatchesGroupedList({
     required this.grouped,
-    required this.formatKickoffLocal,
-    required this.isNotStarted,
+    required this.computeStatus,
   });
 
   @override
   Widget build(BuildContext context) {
-    final leagues = grouped.keys.toList()..sort();
+    final leagues = grouped.keys.toList(); // 👈 sin sort()
     return ListView.builder(
       padding: const EdgeInsets.only(bottom: 16),
       itemCount: leagues.length,
@@ -226,8 +274,7 @@ class _MatchesGroupedList extends StatelessWidget {
         return _LeagueSection(
           league: league,
           items: items,
-          formatKickoffLocal: formatKickoffLocal,
-          isNotStarted: isNotStarted,
+          computeStatus: computeStatus,
         );
       },
     );
@@ -237,14 +284,12 @@ class _MatchesGroupedList extends StatelessWidget {
 class _LeagueSection extends StatelessWidget {
   final String league;
   final List<MatchItem> items;
-  final String Function(String) formatKickoffLocal;
-  final bool Function(String) isNotStarted;
+  final _StatusDisplay Function(MatchItem) computeStatus;
 
   const _LeagueSection({
     required this.league,
     required this.items,
-    required this.formatKickoffLocal,
-    required this.isNotStarted,
+    required this.computeStatus,
   });
 
   @override
@@ -277,13 +322,10 @@ class _LeagueSection extends StatelessWidget {
         const Divider(height: 1),
 
         // Lista de partidos
-        ...items.map((m) => _MatchTile(
-              item: m,
-              timeOrStatus: isNotStarted(
-                      m.statusText.isNotEmpty ? m.statusText : m.status)
-                  ? formatKickoffLocal(m.kickoffUtc)
-                  : (m.statusText.isNotEmpty ? m.statusText : m.status),
-            )),
+        ...items.map((m) {
+          final disp = computeStatus(m);
+          return _MatchTile(item: m, statusDisplay: disp);
+        }),
       ],
     );
   }
@@ -291,9 +333,23 @@ class _LeagueSection extends StatelessWidget {
 
 class _MatchTile extends StatelessWidget {
   final MatchItem item;
-  final String timeOrStatus;
+  final _StatusDisplay statusDisplay;
 
-  const _MatchTile({required this.item, required this.timeOrStatus});
+  const _MatchTile({required this.item, required this.statusDisplay});
+
+  Color _statusColor(BuildContext context) {
+    switch (statusDisplay.kind) {
+      case _StatusKind.live:
+        return Colors.pinkAccent;
+      case _StatusKind.suspended:
+        return Colors.orange;
+      case _StatusKind.time:
+        return Colors.grey.shade700;
+      case _StatusKind.other:
+      default:
+        return Colors.grey.shade700;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -304,9 +360,30 @@ class _MatchTile extends StatelessWidget {
 
     return InkWell(
       onTap: () {
-        // TODO: abrir ficha del partido en tu WebView usando item.href
-        // Usa tu patrón de artículos: Navigator.push a InAppWebViewPage(...)
-        // o, si estás en MyHomePage, homeKey.currentState?.openWebView(item.href);
+        final raw = item.href.trim();
+        if (raw.isEmpty) return;
+
+        final url = (raw.startsWith('http://') || raw.startsWith('https://'))
+            ? raw
+            : 'https://$raw';
+        final title = '${item.homeName} vs ${item.awayName}';
+
+        // 1) WebView integrado si estamos en Home
+        final homeState = homeKey.currentState;
+        if (homeState != null) {
+          homeState.openWebView(url, title: title);
+          return;
+        }
+
+        // 2) fallback: pantalla propia
+        final uri = Uri.tryParse(url);
+        if (uri != null) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => InAppWebViewPage(uri: uri, title: title),
+            ),
+          );
+        }
       },
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
@@ -335,23 +412,83 @@ class _MatchTile extends StatelessWidget {
               ),
             ),
 
-            // Hora local o estado (alineado derecha)
+            // Estado/Minuto/Hora (alineado derecha)
             SizedBox(
-              width: 80,
-              child: Text(
-                timeOrStatus,
-                textAlign: TextAlign.right,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context)
-                    .textTheme
-                    .labelSmall
-                    ?.copyWith(color: Colors.grey[700]),
+              width: 84,
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: _StatusPill(
+                  text: statusDisplay.text,
+                  kind: statusDisplay.kind,
+                ),
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _StatusPill extends StatelessWidget {
+  final String text;
+  final _StatusKind kind;
+
+  const _StatusPill({
+    required this.text,
+    required this.kind,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = () {
+      switch (kind) {
+        case _StatusKind.live:
+          return Colors.pinkAccent;
+        case _StatusKind.suspended:
+          return Colors.orange;
+        case _StatusKind.time:
+        case _StatusKind.other:
+        default:
+          return Colors.grey.shade700;
+      }
+    }();
+
+    final isLive = kind == _StatusKind.live;
+
+    if (isLive) {
+      // 🔴 • 83'
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: const BoxDecoration(
+              color: Colors.pinkAccent,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            text,
+            style: Theme.of(context)
+                .textTheme
+                .labelSmall
+                ?.copyWith(color: color, fontWeight: FontWeight.w700),
+          ),
+        ],
+      );
+    }
+
+    return Text(
+      text,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: Theme.of(context)
+          .textTheme
+          .labelSmall
+          ?.copyWith(color: color, fontWeight: FontWeight.w600),
     );
   }
 }
@@ -482,4 +619,13 @@ class _DateChip {
 
   @override
   int get hashCode => dateKey.hashCode;
+}
+
+// === Estado mostrado (texto + tipo para color) ===
+enum _StatusKind { live, time, suspended, other }
+
+class _StatusDisplay {
+  final String text;
+  final _StatusKind kind;
+  const _StatusDisplay(this.text, this.kind);
 }

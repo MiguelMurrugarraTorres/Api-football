@@ -7,8 +7,9 @@ class MatchItem {
   final String compSlug;
   final String roundText;
 
-  final String dateKey; // YYYY-MM-DD
-  final String kickoffUtc; // ISO o HH:mm UTC (depende de tu scraper)
+  /// Puede venir ISO completo en la API actual
+  final String dateKey;      // ej. "2025-10-09T00:00:00.000Z" o "YYYY-MM-DD"
+  final String kickoffUtc;   // ISO (preferente) o "HH:mm"
 
   final String homeName;
   final String awayName;
@@ -18,11 +19,16 @@ class MatchItem {
   final int? homeScore;
   final int? awayScore;
 
-  /// Ej.: "FT", "NS", "LIVE", etc. (código breve si lo manejas así)
+  /// Estado corto o código
   final String status;
 
-  /// Ej.: "Final del partido", "En juego", "Por empezar"
+  /// Texto amigable. Puede venir vacío o null (→ lo tratamos como suspendido si score 0-0)
   final String statusText;
+
+  /// NUEVO: si está en vivo
+  final String? liveMinuteText; // ej. "83'"
+  final int? liveMinute;        // ej. 83
+  final String? period;         // ej. "1H", "2H", "HT", etc.
 
   const MatchItem({
     required this.matchSlug,
@@ -40,6 +46,9 @@ class MatchItem {
     required this.awayScore,
     required this.status,
     required this.statusText,
+    this.liveMinuteText,
+    this.liveMinute,
+    this.period,
   });
 
   factory MatchItem.fromJson(Map<String, dynamic> json) {
@@ -50,22 +59,27 @@ class MatchItem {
       return null;
     }
 
+    String _str(dynamic v) => (v ?? '').toString();
+
     return MatchItem(
-      matchSlug: (json['match_slug'] ?? '').toString(),
-      href: (json['href'] ?? '').toString(),
-      compName: (json['comp_name'] ?? '').toString(),
-      compSlug: (json['comp_slug'] ?? '').toString(),
-      roundText: (json['round_text'] ?? '').toString(),
-      dateKey: (json['date_key'] ?? '').toString(),
-      kickoffUtc: (json['kickoff_utc'] ?? '').toString(),
-      homeName: (json['home_name'] ?? '').toString(),
-      awayName: (json['away_name'] ?? '').toString(),
-      homeLogo: (json['home_logo'] ?? '').toString(),
-      awayLogo: (json['away_logo'] ?? '').toString(),
+      matchSlug: _str(json['match_slug']),
+      href: _str(json['href']),
+      compName: _str(json['comp_name']),
+      compSlug: _str(json['comp_slug']),
+      roundText: _str(json['round_text']),
+      dateKey: _str(json['date_key']),
+      kickoffUtc: _str(json['kickoff_utc']),
+      homeName: _str(json['home_name']),
+      awayName: _str(json['away_name']),
+      homeLogo: _str(json['home_logo']),
+      awayLogo: _str(json['away_logo']),
       homeScore: _toInt(json['home_score']),
       awayScore: _toInt(json['away_score']),
-      status: (json['status'] ?? '').toString(),
-      statusText: (json['status_text'] ?? '').toString(),
+      status: _str(json['status']),
+      statusText: _str(json['status_text']),
+      liveMinuteText: json['live_minute_text']?.toString(),
+      liveMinute: _toInt(json['live_minute']),
+      period: json['period']?.toString(),
     );
   }
 
@@ -85,5 +99,8 @@ class MatchItem {
         'away_score': awayScore,
         'status': status,
         'status_text': statusText,
+        'live_minute_text': liveMinuteText,
+        'live_minute': liveMinute,
+        'period': period,
       };
 }

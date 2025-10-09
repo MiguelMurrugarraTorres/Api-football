@@ -1,3 +1,4 @@
+// lib/features/home/pages/splash_screen.dart
 import 'package:flutter/material.dart';
 import 'package:football_news_app/main.dart'; // usa homeKey y MyHomePage
 
@@ -12,6 +13,8 @@ class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
   late final Animation<double> _anim;
+
+  bool _navigated = false; // 👈 guard para evitar doble navegación
 
   @override
   void initState() {
@@ -28,9 +31,12 @@ class _SplashScreenState extends State<SplashScreen>
 
   Future<void> _goHome() async {
     await Future.delayed(const Duration(seconds: 3));
-    if (!mounted) return;
+    if (!mounted || _navigated) return;
+    _navigated = true;
+
+    // ⚠️ Esta es la ÚNICA creación del Home con el GlobalKey
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => MyHomePage(key: homeKey)), // 👈 aquí
+      MaterialPageRoute(builder: (_) => MyHomePage(key: homeKey)),
     );
   }
 
@@ -42,28 +48,31 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        color: const Color.fromARGB(255, 245, 245, 245),
-        alignment: Alignment.center,
-        child: FadeTransition(
-          opacity: _anim,
-          child: ScaleTransition(
-            scale: _anim,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Image.asset(
-                  'assets/Primerfoot_icon.png',
-                  width: 120,
-                  height: 120,
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  'PremierFootball',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                ),
-              ],
+    return WillPopScope(
+      onWillPop: () async => false, // bloquea back en el splash
+      child: Scaffold(
+        body: Container(
+          color: const Color.fromARGB(255, 245, 245, 245),
+          alignment: Alignment.center,
+          child: FadeTransition(
+            opacity: _anim,
+            child: ScaleTransition(
+              scale: _anim,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Image.asset(
+                    'assets/Primerfoot_icon.png',
+                    width: 120,
+                    height: 120,
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'PremierFootball',
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

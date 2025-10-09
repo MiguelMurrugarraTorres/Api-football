@@ -5,34 +5,35 @@ import 'dart:io' as io;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:football_news_app/features/teams/pages/teams_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
-// Intl (para los chips de fecha en Matches)
+// Intl
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
-// Tu modelo/servicios existentes
+// Modelos/servicios
 import 'package:football_news_app/data/models/article.dart';
 import 'package:football_news_app/data/services/api_service.dart';
 
-// Pantallas existentes
+// Pantallas
 import 'package:football_news_app/features/articles/pages/all_articles_screen.dart';
 import 'package:football_news_app/features/articles/pages/search_screen.dart';
 import 'package:football_news_app/features/home/pages/splash_screen.dart';
 import 'package:football_news_app/shared/widgets/extensions/under_construction.dart';
 
-// Widgets de Home
+// Widgets Home
 import 'features/home/widgets/article_card_widget.dart';
 import 'features/home/widgets/bottom_navigation_widget.dart';
 import 'features/home/widgets/first_article_widget.dart';
 
-// Servicios de notificaciones
+// Notificaciones
 import 'package:football_news_app/data/services/push_service.dart';
 import 'package:football_news_app/core/notifications/local_notifications.dart';
 import 'package:football_news_app/core/notifications/fcm_background.dart';
 
-// Pantalla de Partidos (real)
+// Partidos
 import 'package:football_news_app/features/matches/pages/matches_screen.dart';
 
 /// ⚠️ Solo desarrollo: aceptar todos los certificados.
@@ -46,7 +47,7 @@ class MyHttpOverrides extends io.HttpOverrides {
   }
 }
 
-/// GlobalKey para poder abrir el WebView integrado desde PushService
+/// GlobalKey para abrir el WebView del Home desde PushService (solo una vez)
 final GlobalKey<MyHomePageState> homeKey = GlobalKey<MyHomePageState>();
 
 Future<void> main() async {
@@ -57,7 +58,7 @@ Future<void> main() async {
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   await setupLocalNotifications();
 
-  // ===== Intl: locale para fechas (evita LocaleDataException) =====
+  // Intl
   Intl.defaultLocale = 'es_PE';
   await initializeDateFormatting('es_PE', null);
 
@@ -77,7 +78,7 @@ class MyApp extends StatelessWidget {
     if (!_pushInit) {
       _pushInit = true;
 
-      // Enlaza taps de notificación -> abrir WebView del Home
+      // Taps de notificación -> abrir WebView del Home
       push.bindNotificationTaps(
         openFromOutside: (url, {String? title}) async {
           final state = homeKey.currentState;
@@ -85,7 +86,7 @@ class MyApp extends StatelessWidget {
         },
       );
 
-      // Pide permisos, obtiene token y registra device en backend
+      // Permisos + registro device
       push.initAndRegister();
     }
 
@@ -99,17 +100,49 @@ class MyApp extends StatelessWidget {
           foregroundColor: Colors.black,
         ),
       ),
-      home: const SplashScreen(),
+      home: const SplashScreen(), // Splash hará pushReplacement a MyHomePage(key: homeKey)
+
+      // En rutas NUNCA usamos homeKey para evitar duplicados.
       routes: {
-        '/home': (_) => MyHomePage(key: homeKey), // 👈 sin const
-        '/matches': (_) => const MatchesScreen(), // 👈 pantalla real
-        '/teams': (_) => const _TeamsFallback(), // temporal
-        // puedes agregar '/tv', '/bets', etc. cuando estén listas
+        '/home': (_) => const MyHomePage(), // ← sin key
+        '/matches': (_) => const MatchesScreen(),
+        '/teams': (_) => const TeamsScreen(),
+
+        // Placeholders con Scaffold + bottom nav
+        '/competitions': (context) => Scaffold(
+              appBar: AppBar(title: const Text('Competiciones')),
+              body: const UnderConstruction(label: 'Competiciones'),
+              bottomNavigationBar: BottomNavigationWidget(
+                selectedIndex: 0,
+                selectedLabel: 'Competiciones',
+                onItemTapped: (i) {
+                  if (i == 0) Navigator.of(context).popUntil((r) => r.isFirst); // Home
+                  if (i == 1) Navigator.of(context).pushReplacementNamed('/matches');
+                  if (i == 2) Navigator.of(context).pushReplacementNamed('/teams');
+                  if (i == 3) {/* ya estás */}
+                },
+              ),
+            ),
+        '/bets': (context) => Scaffold(
+              appBar: AppBar(title: const Text('Apuestas')),
+              body: const UnderConstruction(label: 'Apuestas'),
+              bottomNavigationBar: BottomNavigationWidget(
+                selectedIndex: 0,
+                selectedLabel: 'Apuestas',
+                onItemTapped: (i) {
+                  if (i == 0) Navigator.of(context).popUntil((r) => r.isFirst); // Home
+                  if (i == 1) Navigator.of(context).pushReplacementNamed('/matches');
+                  if (i == 2) Navigator.of(context).pushReplacementNamed('/teams');
+                  if (i == 3) {/* ya estás */}
+                },
+              ),
+            ),
       },
+
       onUnknownRoute: (settings) => MaterialPageRoute(
-        builder: (_) => UnderConstruction(
+        builder: (ctx) => UnderConstruction(
           label: settings.name ?? 'Sección',
-          onGoHome: () => Navigator.of(_).pushReplacementNamed('/home'),
+          onGoHome: () => Navigator.of(ctx).popUntil((r) => r.isFirst),
         ),
       ),
     );
@@ -133,7 +166,7 @@ class MyHomePageState extends State<MyHomePage> {
 
   int _selectedIndex = 0;
 
-  // 👉 Estado para el tab WebView integrado
+  // WebView integrado
   String? _webUrl;
   String? _webTitle;
   WebViewController? _inAppWebController;
@@ -147,21 +180,27 @@ class MyHomePageState extends State<MyHomePage> {
     _initData();
   }
 
+  // ====== DATA ======
   Future<void> _initData() async {
     await loadCachedArticles();
+    if (!mounted) return;
+
     await fetchAllArticles();
+    if (!mounted) return;
+
     await fetchCategories();
   }
 
-  // ------------------ DATA ------------------
-
   Future<void> loadCachedArticles() async {
     final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+
     final cachedData = prefs.getString('initialArticles');
     if (cachedData != null) {
       final List<Article> cached = (jsonDecode(cachedData) as List)
           .map((data) => Article.fromJson(data))
           .toList();
+      if (!mounted) return;
       setState(() {
         articles = cached;
       });
@@ -169,9 +208,10 @@ class MyHomePageState extends State<MyHomePage> {
   }
 
   Future<void> fetchAllArticles() async {
+    if (mounted) setState(() => isLoading = true);
     try {
-      setState(() => isLoading = true);
       final fetched = await apiService.fetchAllArticles();
+      if (!mounted) return;
       setState(() {
         cachedArticles = fetched;
         articles = fetched;
@@ -179,6 +219,7 @@ class MyHomePageState extends State<MyHomePage> {
       });
     } catch (e) {
       debugPrint('Error fetching all articles: $e');
+      if (!mounted) return;
       setState(() => isLoading = false);
     }
   }
@@ -186,16 +227,17 @@ class MyHomePageState extends State<MyHomePage> {
   Future<void> fetchCategories() async {
     try {
       final fetchedCategories = await apiService.fetchCategories();
+      if (!mounted) return;
       setState(() {
         categories = ['Inicio', ...fetchedCategories];
       });
     } catch (error) {
       debugPrint('Error fetching categories: $error');
+      // No UI change necessary here
     }
   }
 
-  // ------------------ NAV ------------------
-
+  // ====== NAV ======
   void _onItemTapped(int index) {
     setState(() {
       if (index == 0) {
@@ -213,6 +255,7 @@ class MyHomePageState extends State<MyHomePage> {
   }
 
   Future<void> openWebView(String url, {String? title}) async {
+    if (!mounted) return;
     setState(() {
       _webUrl = url;
       _webTitle = title;
@@ -221,8 +264,7 @@ class MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final displayed =
-        articles.length > 7 ? articles.take(7).toList() : articles;
+    final displayed = articles.length > 7 ? articles.take(7).toList() : articles;
 
     final String appBarTitle =
         _webUrl != null ? (_webTitle ?? 'PREMIERFOOTBALL') : 'PREMIERFOOTBALL';
@@ -241,6 +283,7 @@ class MyHomePageState extends State<MyHomePage> {
                 context,
                 MaterialPageRoute(builder: (_) => const SearchScreen()),
               );
+              // Compat: soporta String o Map {url,title}
               if (result is Map) {
                 final url = (result['url'] ?? '').toString();
                 final String? title = (result['title'] as String?)?.trim();
@@ -259,6 +302,7 @@ class MyHomePageState extends State<MyHomePage> {
                       await _inAppWebController!.canGoBack()) {
                     _inAppWebController!.goBack();
                   } else {
+                    if (!mounted) return;
                     setState(() {
                       _webUrl = null;
                       _webTitle = null;
@@ -338,19 +382,6 @@ class MyHomePageState extends State<MyHomePage> {
         selectedIndex: _selectedIndex,
         onItemTapped: _onItemTapped,
       ),
-    );
-  }
-}
-
-/// ====== Fallback temporal para Teams (cámbialo cuando tengas la pantalla real) ======
-class _TeamsFallback extends StatelessWidget {
-  const _TeamsFallback();
-
-  @override
-  Widget build(BuildContext context) {
-    return UnderConstruction(
-      label: 'Equipos',
-      onGoHome: () => Navigator.of(context).pushReplacementNamed('/home'),
     );
   }
 }

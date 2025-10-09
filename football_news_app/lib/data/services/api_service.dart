@@ -221,4 +221,24 @@ class ApiService {
       rethrow;
     }
   }
+
+
+    // === TEAMS ===
+
+  Future<List<Map<String, dynamic>>> fetchTeamsRaw() async {
+    final resp = await _get('/teams');
+    return _parseEnvelope(resp, (body) {
+      final list = (body as List<dynamic>);
+      return list.map((e) => e as Map<String, dynamic>).toList();
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> searchTeamsV2(String query) async {
+    final resp = await _get('/teams/search', query: {'q': query});
+    return _parseEnvelope(resp, (body) {
+      final list = (body as List<dynamic>);
+      return list.map((e) => e as Map<String, dynamic>).toList();
+    });
+  }
+
 }

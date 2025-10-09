@@ -1,129 +1,87 @@
 // lib/features/home/widgets/bottom_navigation_widget.dart
 import 'package:flutter/material.dart';
-import 'package:football_news_app/data/services/api_service.dart';
 
-class BottomNavigationWidget extends StatefulWidget {
+class BottomNavigationWidget extends StatelessWidget {
   final int selectedIndex;
   final Function(int) onItemTapped;
+
+  /// Opcional: fuerza la pestaña seleccionada por nombre (ej. 'Partidos')
+  final String? selectedLabel;
 
   const BottomNavigationWidget({
     super.key,
     required this.selectedIndex,
     required this.onItemTapped,
+    this.selectedLabel,
   });
 
-  @override
-  State<BottomNavigationWidget> createState() => _BottomNavigationWidgetState();
-}
+  // 🔒 Estático: estos son los módulos fijos
+  static const _items = <_NavItem>[
+    _NavItem(label: 'Inicio',        icon: Icons.home,             route: '/home'),
+    _NavItem(label: 'Partidos',      icon: Icons.sports_soccer,    route: '/matches'),
+    _NavItem(label: 'Equipos',       icon: Icons.group,            route: '/teams'),
+    _NavItem(label: 'Competiciones', icon: Icons.emoji_events,     route: '/competitions'),
+    _NavItem(label: 'Apuestas',      icon: Icons.currency_bitcoin_outlined, route: '/bets'),
+  ];
 
-class _BottomNavigationWidgetState extends State<BottomNavigationWidget> {
-  final ApiService apiService = ApiService();
-  List<String> categories = ['Inicio', 'Partidos', 'TV'];
-  bool isLoading = true;
+  String _normalize(String s) => s.trim().toLowerCase();
 
-  @override
-  void initState() {
-    super.initState();
-    _fetchCategories();
+  int _currentIndex() {
+    // Si nos pasan label, priorizamos eso
+    if (selectedLabel != null) {
+      final i = _items.indexWhere(
+        (e) => _normalize(e.label) == _normalize(selectedLabel!),
+      );
+      if (i != -1) return i;
+    }
+    // Si no, usamos el índice provisto (clamp por seguridad)
+    return selectedIndex.clamp(0, _items.length - 1);
   }
 
-  String _normalize(String text) => text.trim().toLowerCase();
+  void _handleTap(BuildContext context, int index) {
+    final item = _items[index];
+    final labelNorm = _normalize(item.label);
 
-  Future<void> _fetchCategories() async {
-    try {
-      final fetched = await apiService.fetchCategories();
-
-      final base = ['Inicio', 'Partidos', 'TV'];
-      final merged = <String>[];
-
-      void addIfNotExist(String v) {
-        if (v.isNotEmpty &&
-            !merged.any((x) => _normalize(x) == _normalize(v))) {
-          merged.add(v);
-        }
-      }
-
-      for (final b in base) addIfNotExist(b);
-      for (final f in fetched) addIfNotExist(f);
-
-      setState(() {
-        categories = merged;
-        isLoading = false;
-      });
-    } catch (e) {
-      debugPrint('Error fetching categories: $e');
-      setState(() {
-        if (categories.length < 2) {
-          categories = ['Inicio', 'Noticias', 'TV'];
-        }
-        isLoading = false;
-      });
+    // Para Home dejamos también que el padre mueva el stack si lo necesita
+    if (labelNorm == 'inicio') {
+      onItemTapped(index);
     }
-  }
 
-  IconData _getCategoryIcon(String category) {
-    switch (_normalize(category)) {
-      case 'inicio':
-        return Icons.home;
-      case 'partidos':
-        return Icons.sports_soccer;
-      case 'equipos':
-        return Icons.group;
-      case 'competiciones':
-        return Icons.emoji_events;
-      case 'apuestas':
-        return Icons.currency_bitcoin_outlined;
-      case 'tv':
-        return Icons.tv;
-      case 'noticias':
-        return Icons.article_outlined;
-      default:
-        return Icons.category_outlined;
-    }
+    // Navegación por rutas (reemplaza pantalla actual)
+    Navigator.of(context).pushReplacementNamed(item.route);
   }
 
   @override
   Widget build(BuildContext context) {
-    if (isLoading) {
-      return const SizedBox(
-        height: 60,
-        child: Center(child: CircularProgressIndicator()),
-      );
-    }
+    final curr = _currentIndex();
 
     return BottomNavigationBar(
       type: BottomNavigationBarType.fixed,
       showSelectedLabels: true,
       showUnselectedLabels: true,
-      items: categories
-          .map((category) => BottomNavigationBarItem(
-                icon: Icon(_getCategoryIcon(category)),
-                label: category,
-              ))
+      items: _items
+          .map(
+            (e) => BottomNavigationBarItem(
+              icon: Icon(e.icon),
+              label: e.label,
+            ),
+          )
           .toList(),
-      currentIndex: widget.selectedIndex.clamp(0, categories.length - 1),
+      currentIndex: curr,
       selectedItemColor: Colors.black,
       unselectedItemColor: Colors.grey,
-      onTap: (index) {
-        final label = categories[index].trim().toLowerCase();
-
-        switch (label) {
-          case 'partidos':
-            Navigator.of(context).pushNamed('/matches');
-            return;
-          case 'equipos':
-            Navigator.of(context).pushNamed('/teams');
-            return;
-          case 'apuestas':
-            Navigator.of(context).pushNamed('/bets');
-            return;
-          case 'tv':
-            Navigator.of(context).pushNamed('/tv');
-            return;
-          default:
-            widget.onItemTapped(index);
-        }
-      },
+      onTap: (i) => _handleTap(context, i),
     );
   }
+}
+
+class _NavItem {
+  final String label;
+  final IconData icon;
+  final String route;
+  const _NavItem({
+    required this.label,
+    required this.icon,
+    required this.route,
+  });
 }
