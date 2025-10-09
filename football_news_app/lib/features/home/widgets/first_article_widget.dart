@@ -1,11 +1,89 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:football_news_app/data/models/article.dart';
-
-// ✅ usamos tu pestaña webview fallback unificada
 import 'package:football_news_app/features/webview/pages/in_app_webview_page.dart';
-
-// ✅ para usar openWebView(...) del Home
 import 'package:football_news_app/main.dart';
+
+// PNG transparente 1x1 para efecto fade-in sin libs extra
+final Uint8List _kTransparentImage = Uint8List.fromList(
+  [
+    0x89,
+    0x50,
+    0x4E,
+    0x47,
+    0x0D,
+    0x0A,
+    0x1A,
+    0x0A,
+    0x00,
+    0x00,
+    0x00,
+    0x0D,
+    0x49,
+    0x48,
+    0x44,
+    0x52,
+    0x00,
+    0x00,
+    0x00,
+    0x01,
+    0x00,
+    0x00,
+    0x00,
+    0x01,
+    0x08,
+    0x06,
+    0x00,
+    0x00,
+    0x00,
+    0x1F,
+    0x15,
+    0xC4,
+    0x89,
+    0x00,
+    0x00,
+    0x00,
+    0x0A,
+    0x49,
+    0x44,
+    0x41,
+    0x54,
+    0x78,
+    0x9C,
+    0x63,
+    0x00,
+    0x01,
+    0x00,
+    0x00,
+    0x05,
+    0x00,
+    0x01,
+    0x0D,
+    0x0A,
+    0x2D,
+    0xB4,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x49,
+    0x45,
+    0x4E,
+    0x44,
+    0xAE,
+    0x42,
+    0x60,
+    0x82
+  ],
+);
+
+String _normalizeUrl(String link) {
+  final l = link.trim();
+  if (l.isEmpty) return '';
+  return (l.startsWith('http://') || l.startsWith('https://'))
+      ? l
+      : 'https://$l';
+}
 
 class FirstArticleWidget extends StatelessWidget {
   final Article article;
@@ -24,6 +102,8 @@ class FirstArticleWidget extends StatelessWidget {
           if (article.videoLink.isNotEmpty) {
             _launchURL(context, article.videoLink);
           }
+          // Si en el futuro agregas article.url, puedes hacer:
+          // else if (article.url?.isNotEmpty == true) { _launchURL(context, article.url!); }
         },
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -33,13 +113,14 @@ class FirstArticleWidget extends StatelessWidget {
               ClipRRect(
                 borderRadius:
                     const BorderRadius.vertical(top: Radius.circular(16)),
-                child: Image.network(
-                  article.imageUrl,
-                  fit: BoxFit.fill,
-                  width: double.infinity,
-                  height: 180,
-                  errorBuilder: (context, error, stackTrace) =>
-                      const SizedBox(),
+                child: AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: FadeInImage.memoryNetwork(
+                    placeholder: _kTransparentImage,
+                    image: article.imageUrl,
+                    fit: BoxFit.cover,
+                    imageErrorBuilder: (_, __, ___) => const SizedBox(),
+                  ),
                 ),
               ),
             Padding(
@@ -55,6 +136,7 @@ class FirstArticleWidget extends StatelessWidget {
                         ?.copyWith(fontWeight: FontWeight.bold),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
+                    semanticsLabel: article.title,
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -75,28 +157,22 @@ class FirstArticleWidget extends StatelessWidget {
   }
 
   void _launchURL(BuildContext context, String url) {
-    final link = url.trim();
-    if (link.isEmpty) {
+    final normalized = _normalizeUrl(url);
+    if (normalized.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Enlace vacío')),
       );
       return;
     }
 
-    // Normaliza por si viniera sin esquema
-    final normalized =
-        (link.startsWith('http://') || link.startsWith('https://'))
-            ? link
-            : 'https://$link';
-
-    // 1) Si estamos bajo MyHomePage, usa su pestaña WebView y pasa el título
+    // 1) Si estamos bajo MyHomePage, usar su pestaña WebView
     final homeState = context.findAncestorStateOfType<MyHomePageState>();
     if (homeState != null) {
       homeState.openWebView(normalized, title: article.title);
       return;
     }
 
-    // 2) Fallback: pantalla propia con título
+    // 2) Fallback a pantalla propia
     final uri = Uri.tryParse(normalized);
     if (uri == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -104,7 +180,6 @@ class FirstArticleWidget extends StatelessWidget {
       );
       return;
     }
-
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => InAppWebViewPage(uri: uri, title: article.title),
@@ -136,6 +211,31 @@ class ArticleFooter extends StatelessWidget {
 
   const ArticleFooter({super.key, required this.article});
 
+  String _friendlyTime() {
+    if (article.publishedTimeText.isNotEmpty) return article.publishedTimeText;
+
+    // Fallback básico: si publishedTime parece epoch en segundos o ms
+    final t = article.publishedTime;
+    if (t > 0) {
+      final now = DateTime.now();
+      DateTime? dt;
+      if (t > 1000000000000) {
+        // milisegundos
+        dt = DateTime.fromMillisecondsSinceEpoch(t);
+      } else if (t > 1000000000) {
+        // segundos
+        dt = DateTime.fromMillisecondsSinceEpoch(t * 1000);
+      }
+      if (dt != null) {
+        final diff = now.difference(dt);
+        if (diff.inMinutes < 60) return 'Hace ${diff.inMinutes} min';
+        if (diff.inHours < 24) return 'Hace ${diff.inHours} h';
+        return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
+      }
+    }
+    return 'Hace ${article.publishedTime} horas';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -151,12 +251,16 @@ class ArticleFooter extends StatelessWidget {
             ),
           ),
         if (article.imageUrlPublished.isNotEmpty) const SizedBox(width: 5),
-        Text(article.source, style: Theme.of(context).textTheme.labelSmall),
+        Flexible(
+          child: Text(
+            article.source,
+            style: Theme.of(context).textTheme.labelSmall,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
         const SizedBox(width: 10),
         Text(
-          article.publishedTimeText.isNotEmpty
-              ? article.publishedTimeText
-              : 'Hace ${article.publishedTime} horas',
+          _friendlyTime(),
           style: Theme.of(context).textTheme.labelSmall,
         ),
         const Spacer(),
@@ -170,7 +274,8 @@ class ArticleFooter extends StatelessWidget {
   }
 
   void _launchURL(BuildContext context, String url) {
+    // Reusa el método del widget principal (misma unidad de compilación, permite llamada a método privado)
     final parent = context.findAncestorWidgetOfExactType<FirstArticleWidget>();
-    parent?._launchURL(context, url); // reusa el método del widget principal
+    parent?._launchURL(context, url);
   }
 }

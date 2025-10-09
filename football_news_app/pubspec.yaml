@@ -13,31 +13,51 @@ dependencies:
 
   cupertino_icons: ^1.0.2
   http: ^1.1.0
-  url_launcher: ^6.2.4
-  shared_preferences: ^2.2.3
+  url_launcher: ^6.2.4 # Deja la versión principal intacta
+  shared_preferences: ^2.2.4 # Versión actualizada
   pull_to_refresh: ^2.0.0
-  webview_flutter: ^4.4.2
+  webview_flutter: ^4.4.2 # Deja la versión principal intacta
   firebase_core: ^2.27.0
   firebase_messaging: ^14.7.10
   flutter_local_notifications: ^17.1.2
   uuid: ^4.4.0
+  intl: ^0.19.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^2.0.3
-  flutter_launcher_icons: ^0.13.1
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+  
 
 flutter_icons:
-  android: "launcher_icon"        # nombre del recurso Android
-  ios: true                       # genera también para iOS (puedes poner false si no lo necesitas)
+  android: "launcher_icon"
+  ios: true
   image_path: "assets/Primerfoot_icon.png"
   image_path_ios: "assets/Primerfoot_icon.png"
-  # --- Opcional (si quieres icono adaptativo en Android 8+):
-  # adaptive_icon_background: "#FFFFFF"             # o "assets/icon_bg.png"
-  # adaptive_icon_foreground: "assets/icon_fg.png"  # tu logo recortado
+  # adaptive_icon_background: "#FFFFFF"
+  # adaptive_icon_foreground: "assets/icon_fg.png"
 
 flutter:
   uses-material-design: true
   assets:
     - assets/Primerfoot_icon.png
+
+# =========================================================
+# === INYECCIÓN DE COMPATIBILIDAD (DEPENDENCY_OVERRIDES) ===
+# =========================================================
+# Forzamos la instalación de versiones de plugins que ya migraron al V2 Embedding
+# para evitar el error 'Registrar' (V1 Embedding).
+
+dependency_overrides:
+  # Para el error de 'win32'
+  win32: ^5.0.0 
+  
+  # Para el error de 'shared_preferences'
+  shared_preferences_android: ^2.2.4 
+  
+  # Para el error de 'url_launcher'
+  url_launcher_android: ^6.3.23 
+  
+  # Para el error de 'webview_flutter'
+  webview_flutter_android: ^4.10.3

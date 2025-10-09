@@ -1,3 +1,4 @@
+// lib/features/home/widgets/bottom_navigation_widget.dart
 import 'package:flutter/material.dart';
 import 'package:football_news_app/data/services/api_service.dart';
 
@@ -5,87 +6,124 @@ class BottomNavigationWidget extends StatefulWidget {
   final int selectedIndex;
   final Function(int) onItemTapped;
 
-  BottomNavigationWidget({
+  const BottomNavigationWidget({
+    super.key,
     required this.selectedIndex,
     required this.onItemTapped,
   });
 
   @override
-  _BottomNavigationWidgetState createState() => _BottomNavigationWidgetState();
+  State<BottomNavigationWidget> createState() => _BottomNavigationWidgetState();
 }
 
 class _BottomNavigationWidgetState extends State<BottomNavigationWidget> {
-  ApiService apiService = ApiService();
-  List<String> categories = ['Inicio'];
+  final ApiService apiService = ApiService();
+  List<String> categories = ['Inicio', 'Partidos', 'TV'];
+  bool isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    fetchCategories();
+    _fetchCategories();
   }
 
-Future<void> fetchCategories() async {
-  try {
-    List<String> fetchedCategories = await apiService.fetchCategories();
-    setState(() {
-      categories = ['Inicio'] + fetchedCategories;
+  String _normalize(String text) => text.trim().toLowerCase();
 
-      // ✅ Si hay menos de 2 elementos, agregar una categoría extra
-      if (categories.length < 2) {
-        categories.add("Noticias"); // Categoría extra para evitar el error
+  Future<void> _fetchCategories() async {
+    try {
+      final fetched = await apiService.fetchCategories();
+
+      final base = ['Inicio', 'Partidos', 'TV'];
+      final merged = <String>[];
+
+      void addIfNotExist(String v) {
+        if (v.isNotEmpty &&
+            !merged.any((x) => _normalize(x) == _normalize(v))) {
+          merged.add(v);
+        }
       }
-    });
-  } catch (error) {
-    print('Error fetching categories: $error');
 
-    // ✅ Si hay error, asegurar que haya al menos 2 categorías
-    setState(() {
-      if (categories.length < 2) {
-        categories = ['Inicio', 'Noticias'];
-      }
-    });
-  }
-}
+      for (final b in base) addIfNotExist(b);
+      for (final f in fetched) addIfNotExist(f);
 
-
-  // ✅ Mantiene los íconos personalizados
-  IconData _getCategoryIcon(String category) {
-    switch (category) {
-      case 'Partidos':
-        return Icons.sports_soccer;
-      case 'Equipos':
-        return Icons.group;
-      case 'Competiciones':
-        return Icons.emoji_events;
-      case 'TV':
-        return Icons.tv;
-      case 'Apuestas':
-        return Icons.currency_bitcoin_outlined;
-      default:
-        return Icons.home;
+      setState(() {
+        categories = merged;
+        isLoading = false;
+      });
+    } catch (e) {
+      debugPrint('Error fetching categories: $e');
+      setState(() {
+        if (categories.length < 2) {
+          categories = ['Inicio', 'Noticias', 'TV'];
+        }
+        isLoading = false;
+      });
     }
   }
-@override
-Widget build(BuildContext context) {
-  if (categories.length < 2) {
-    return const Center(child: CircularProgressIndicator()); // ✅ Mostrar indicador de carga temporalmente
+
+  IconData _getCategoryIcon(String category) {
+    switch (_normalize(category)) {
+      case 'inicio':
+        return Icons.home;
+      case 'partidos':
+        return Icons.sports_soccer;
+      case 'equipos':
+        return Icons.group;
+      case 'competiciones':
+        return Icons.emoji_events;
+      case 'apuestas':
+        return Icons.currency_bitcoin_outlined;
+      case 'tv':
+        return Icons.tv;
+      case 'noticias':
+        return Icons.article_outlined;
+      default:
+        return Icons.category_outlined;
+    }
   }
 
-  return BottomNavigationBar(
-    type: BottomNavigationBarType.fixed, // 👈 evita shifting: muestra todas las labels
-    showSelectedLabels: true,    // 👈 muestra la categoría también en seleccionados
-    showUnselectedLabels: true,  // 👈 muestra la categoría también en no seleccionados
-    items: categories.map((category) {
-      return BottomNavigationBarItem(
-        icon: Icon(_getCategoryIcon(category)),
-        label: category,
+  @override
+  Widget build(BuildContext context) {
+    if (isLoading) {
+      return const SizedBox(
+        height: 60,
+        child: Center(child: CircularProgressIndicator()),
       );
-    }).toList(),
-    currentIndex: widget.selectedIndex,
-    selectedItemColor: Colors.black,
-    unselectedItemColor: Colors.grey,
-    onTap: widget.onItemTapped,
-  );
-}
+    }
 
+    return BottomNavigationBar(
+      type: BottomNavigationBarType.fixed,
+      showSelectedLabels: true,
+      showUnselectedLabels: true,
+      items: categories
+          .map((category) => BottomNavigationBarItem(
+                icon: Icon(_getCategoryIcon(category)),
+                label: category,
+              ))
+          .toList(),
+      currentIndex: widget.selectedIndex.clamp(0, categories.length - 1),
+      selectedItemColor: Colors.black,
+      unselectedItemColor: Colors.grey,
+      onTap: (index) {
+        final label = categories[index].trim().toLowerCase();
+
+        switch (label) {
+          case 'partidos':
+            Navigator.of(context).pushNamed('/matches');
+            return;
+          case 'equipos':
+            Navigator.of(context).pushNamed('/teams');
+            return;
+          case 'apuestas':
+            Navigator.of(context).pushNamed('/bets');
+            return;
+          case 'tv':
+            Navigator.of(context).pushNamed('/tv');
+            return;
+          default:
+            widget.onItemTapped(index);
+        }
+      },
+    );
+  }
 }

@@ -6,21 +6,26 @@ import 'package:football_news_app/data/models/article.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
-
 class ApiService {
-  // Usamos la base protegida y los headers con X-App-Key
+  // ====== Config ======
   static const String _base = AppConst.protectedApiBase;
   static const Duration _timeout = Duration(seconds: 20);
 
+  static const _kCacheArticles = 'initialArticles';
+  static const _kCacheMatchesPrefix = 'matches:'; // matches:YYYY-MM-DD
+  static const _kCacheTeamsAll = 'teams:all';
+  static const _kCacheTeamsByLetterPrefix = 'teams:letter:'; // teams:letter:a
+
   Map<String, String> get _headers => AppConst.headers();
 
-
+  // ====== Low-level HTTP ======
   Future<http.Response> _get(String path, {Map<String, String>? query}) {
     final uri = Uri.parse('$_base$path').replace(queryParameters: query);
     return http.get(uri, headers: _headers).timeout(_timeout);
   }
 
-  // Parsea la respuesta estándar { b_Activo, responseMessage, lstResponseBody }
+  // Envuelve el parseo de la respuesta estándar:
+  // { b_Activo, responseMessage, lstResponseBody }
   T _parseEnvelope<T>(http.Response resp, T Function(dynamic body) mapper) {
     if (resp.statusCode != 200) {
       throw Exception('HTTP ${resp.statusCode}');
@@ -34,30 +39,43 @@ class ApiService {
     return mapper(jsonResp['lstResponseBody']);
   }
 
-  // -------- Endpoints --------
+  // Parse en background para listas de artículos
+  static List<Article> _mapArticles(dynamic body) {
+    final list = (body as List<dynamic>);
+    return list
+        .map((e) => Article.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
 
-
+  // ====== ARTÍCULOS ======
   Future<List<Article>> fetchInitialArticles() async {
     final prefs = await SharedPreferences.getInstance();
     try {
       final resp = await _get('/all-articles');
-      final List<Article> articles = _parseEnvelope(resp, (body) {
-        final list = (body as List<dynamic>);
-        return list.map((e) => Article.fromJson(e as Map<String, dynamic>)).toList();
-      });
+      final List<Article> articles =
+          await compute(_mapArticles, _parseEnvelope(resp, (b) => b));
 
-      // Cachea
-      prefs.setString('initialArticles', jsonEncode(articles));
+      // Cache persistente (JSON serializado)
+      try {
+        final encoded = jsonEncode(articles.map((a) => a.toJson()).toList());
+        await prefs.setString(_kCacheArticles, encoded);
+      } catch (_) {
+        // Si falla el toJson (modelos antiguos), no bloqueamos el flujo
+      }
       return articles;
     } catch (e, st) {
       debugPrint('fetchInitialArticles ERR: $e\n$st');
-      // fallback a cache
-      final cached = prefs.getString('initialArticles');
+      // Fallback al caché
+      final cached = prefs.getString(_kCacheArticles);
       if (cached != null) {
-        final list = (jsonDecode(cached) as List<dynamic>)
-            .map((e) => Article.fromJson(e as Map<String, dynamic>))
-            .toList();
-        return list;
+        try {
+          final list = (jsonDecode(cached) as List<dynamic>)
+              .map((e) => Article.fromJson(e as Map<String, dynamic>))
+              .toList();
+          return list;
+        } catch (_) {
+          // Si el caché es viejo o incompatible, lo ignoramos.
+        }
       }
       rethrow;
     }
@@ -65,15 +83,33 @@ class ApiService {
 
   Future<List<Article>> fetchAllArticles() async {
     final resp = await _get('/all-articles');
-    final List<Article> articles = _parseEnvelope(resp, (body) {
-      final list = (body as List<dynamic>);
-      return list.map((e) => Article.fromJson(e as Map<String, dynamic>)).toList();
-    });
+    final List<Article> articles =
+        await compute(_mapArticles, _parseEnvelope(resp, (b) => b));
 
-    
+    // Actualiza caché
     final prefs = await SharedPreferences.getInstance();
-    prefs.setString('initialArticles', jsonEncode(articles));
+    try {
+      final encoded = jsonEncode(articles.map((a) => a.toJson()).toList());
+      await prefs.setString(_kCacheArticles, encoded);
+    } catch (_) {}
     return articles;
+  }
+
+  Future<List<Article>> getCachedArticles({int limit = 10}) async {
+    final prefs = await SharedPreferences.getInstance();
+    final data = prefs.getString(_kCacheArticles);
+    if (data == null) return [];
+    try {
+      final list = (jsonDecode(data) as List<dynamic>)
+          .map((e) => Article.fromJson(e as Map<String, dynamic>))
+          .toList();
+      if (limit > 0 && list.length > limit) {
+        return list.take(limit).toList();
+      }
+      return list;
+    } catch (_) {
+      return [];
+    }
   }
 
   Future<List<String>> fetchCategories() async {
@@ -81,14 +117,6 @@ class ApiService {
     return _parseEnvelope(resp, (body) {
       final list = (body as List<dynamic>);
       return List<String>.from(list.map((e) => e.toString()));
-    });
-  }
-
-  Future<List<Map<String, dynamic>>> searchTeams(String query) async {
-    final resp = await _get('/search/equipos', query: {'q': query});
-    return _parseEnvelope(resp, (body) {
-      final list = (body as List<dynamic>);
-      return list.map((e) => e as Map<String, dynamic>).toList();
     });
   }
 
@@ -100,18 +128,97 @@ class ApiService {
     });
   }
 
-  Future<List<Article>> getCachedArticles({int limit = 10}) async {
+  // ====== EQUIPOS ======
+  Future<List<Map<String, dynamic>>> searchTeams(String query) async {
+    final resp = await _get('/search/equipos', query: {'q': query});
+    return _parseEnvelope(resp, (body) {
+      final list = (body as List<dynamic>);
+      return list.map((e) => e as Map<String, dynamic>).toList();
+    });
+  }
+
+  /// Lista completa de equipos (puede ser pesada). Cachea localmente.
+  Future<List<Map<String, dynamic>>> fetchTeamsAll() async {
     final prefs = await SharedPreferences.getInstance();
-    final data = prefs.getString('initialArticles');
-    if (data == null) return [];
-
-    final list = (jsonDecode(data) as List<dynamic>)
-        .map((e) => Article.fromJson(e as Map<String, dynamic>))
-        .toList();
-
-    if (limit > 0 && list.length > limit) {
-      return list.take(limit).toList();
+    try {
+      final resp = await _get('/teams');
+      final data = _parseEnvelope(resp, (body) {
+        final list = (body as List<dynamic>);
+        return list.map((e) => e as Map<String, dynamic>).toList();
+      });
+      // Cache
+      await prefs.setString(_kCacheTeamsAll, jsonEncode(data));
+      return data;
+    } catch (e, st) {
+      debugPrint('fetchTeamsAll ERR: $e\n$st');
+      final cached = prefs.getString(_kCacheTeamsAll);
+      if (cached != null) {
+        try {
+          final list = (jsonDecode(cached) as List<dynamic>)
+              .map((e) => e as Map<String, dynamic>)
+              .toList();
+          return list;
+        } catch (_) {}
+      }
+      rethrow;
     }
-    return list;
+  }
+
+  /// Equipos por letra A–Z: GET /api/teams/by-letter?letter=a
+  Future<List<Map<String, dynamic>>> fetchTeamsByLetter(String letter) async {
+    final prefs = await SharedPreferences.getInstance();
+    final cacheKey = '$_kCacheTeamsByLetterPrefix$letter';
+    try {
+      final resp = await _get('/teams/by-letter', query: {'letter': letter});
+      final data = _parseEnvelope(resp, (body) {
+        final list = (body as List<dynamic>);
+        return list.map((e) => e as Map<String, dynamic>).toList();
+      });
+      await prefs.setString(cacheKey, jsonEncode(data));
+      return data;
+    } catch (e, st) {
+      debugPrint('fetchTeamsByLetter ERR: $e\n$st');
+      final cached = prefs.getString(cacheKey);
+      if (cached != null) {
+        try {
+          final list = (jsonDecode(cached) as List<dynamic>)
+              .map((e) => e as Map<String, dynamic>)
+              .toList();
+          return list;
+        } catch (_) {}
+      }
+      rethrow;
+    }
+  }
+
+  // ====== PARTIDOS ======
+  /// Partidos por fecha (YYYY-MM-DD). Si null, el backend puede asumir “hoy”.
+  /// Cachea por día.
+  Future<List<Map<String, dynamic>>> fetchMatches({String? date}) async {
+    final prefs = await SharedPreferences.getInstance();
+    final q = date != null ? {'date': date} : null;
+    final cacheKey = '$_kCacheMatchesPrefix${date ?? 'today'}';
+
+    try {
+      final resp = await _get('/matches', query: q);
+      final data = _parseEnvelope(resp, (body) {
+        final list = (body as List<dynamic>);
+        return list.map((e) => e as Map<String, dynamic>).toList();
+      });
+      await prefs.setString(cacheKey, jsonEncode(data));
+      return data;
+    } catch (e, st) {
+      debugPrint('fetchMatches ERR: $e\n$st');
+      final cached = prefs.getString(cacheKey);
+      if (cached != null) {
+        try {
+          final list = (jsonDecode(cached) as List<dynamic>)
+              .map((e) => e as Map<String, dynamic>)
+              .toList();
+          return list;
+        } catch (_) {}
+      }
+      rethrow;
+    }
   }
 }

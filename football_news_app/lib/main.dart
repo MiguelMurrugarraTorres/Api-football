@@ -8,6 +8,10 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
+// Intl (para los chips de fecha en Matches)
+import 'package:intl/intl.dart';
+import 'package:intl/date_symbol_data_local.dart';
+
 // Tu modelo/servicios existentes
 import 'package:football_news_app/data/models/article.dart';
 import 'package:football_news_app/data/services/api_service.dart';
@@ -18,17 +22,18 @@ import 'package:football_news_app/features/articles/pages/search_screen.dart';
 import 'package:football_news_app/features/home/pages/splash_screen.dart';
 import 'package:football_news_app/shared/widgets/extensions/under_construction.dart';
 
-// Widgets de Home (no tocados)
+// Widgets de Home
 import 'features/home/widgets/article_card_widget.dart';
 import 'features/home/widgets/bottom_navigation_widget.dart';
 import 'features/home/widgets/first_article_widget.dart';
 
-// NUEVO: constantes + servicios de auth/push
+// Servicios de notificaciones
 import 'package:football_news_app/data/services/push_service.dart';
-
-
 import 'package:football_news_app/core/notifications/local_notifications.dart';
 import 'package:football_news_app/core/notifications/fcm_background.dart';
+
+// Pantalla de Partidos (real)
+import 'package:football_news_app/features/matches/pages/matches_screen.dart';
 
 /// ⚠️ Solo desarrollo: aceptar todos los certificados.
 class MyHttpOverrides extends io.HttpOverrides {
@@ -41,11 +46,6 @@ class MyHttpOverrides extends io.HttpOverrides {
   }
 }
 
-/// ---------- Notificaciones locales (canal Android) ----------
-
-
-
-
 /// GlobalKey para poder abrir el WebView integrado desde PushService
 final GlobalKey<MyHomePageState> homeKey = GlobalKey<MyHomePageState>();
 
@@ -57,17 +57,21 @@ Future<void> main() async {
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   await setupLocalNotifications();
 
+  // ===== Intl: locale para fechas (evita LocaleDataException) =====
+  Intl.defaultLocale = 'es_PE';
+  await initializeDateFormatting('es_PE', null);
+
   runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  static bool _pushInit = false; // 👈 guard
+  static bool _pushInit = false; // guard
 
   @override
   Widget build(BuildContext context) {
-    // Inicializamos PushService (idempotente, pero registramos SOLO una vez)
+    // Inicializamos PushService (idempotente, registra SOLO una vez)
     final push = PushService(localNotifs, androidHighImportanceChannel);
 
     if (!_pushInit) {
@@ -96,12 +100,23 @@ class MyApp extends StatelessWidget {
         ),
       ),
       home: const SplashScreen(),
+      routes: {
+        '/home': (_) => MyHomePage(key: homeKey), // 👈 sin const
+        '/matches': (_) => const MatchesScreen(), // 👈 pantalla real
+        '/teams': (_) => const _TeamsFallback(), // temporal
+        // puedes agregar '/tv', '/bets', etc. cuando estén listas
+      },
+      onUnknownRoute: (settings) => MaterialPageRoute(
+        builder: (_) => UnderConstruction(
+          label: settings.name ?? 'Sección',
+          onGoHome: () => Navigator.of(_).pushReplacementNamed('/home'),
+        ),
+      ),
     );
   }
 }
 
-
-/// ===================== HOME=====================
+/// ===================== HOME =====================
 class MyHomePage extends StatefulWidget {
   const MyHomePage({super.key});
 
@@ -130,7 +145,6 @@ class MyHomePageState extends State<MyHomePage> {
   void initState() {
     super.initState();
     _initData();
-    // ✅ Eliminado: _setupFCMCallbacks();  (lo maneja PushService en MyApp)
   }
 
   Future<void> _initData() async {
@@ -227,7 +241,6 @@ class MyHomePageState extends State<MyHomePage> {
                 context,
                 MaterialPageRoute(builder: (_) => const SearchScreen()),
               );
-              // Compat: soporta String o Map {url,title}
               if (result is Map) {
                 final url = (result['url'] ?? '').toString();
                 final String? title = (result['title'] as String?)?.trim();
@@ -325,6 +338,19 @@ class MyHomePageState extends State<MyHomePage> {
         selectedIndex: _selectedIndex,
         onItemTapped: _onItemTapped,
       ),
+    );
+  }
+}
+
+/// ====== Fallback temporal para Teams (cámbialo cuando tengas la pantalla real) ======
+class _TeamsFallback extends StatelessWidget {
+  const _TeamsFallback();
+
+  @override
+  Widget build(BuildContext context) {
+    return UnderConstruction(
+      label: 'Equipos',
+      onGoHome: () => Navigator.of(context).pushReplacementNamed('/home'),
     );
   }
 }
