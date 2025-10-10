@@ -1,6 +1,5 @@
-// lib/features/home/pages/splash_screen.dart
 import 'package:flutter/material.dart';
-import 'package:football_news_app/main.dart'; // usa homeKey y MyHomePage
+import 'package:football_news_app/features/home/pages/home_page.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -13,8 +12,7 @@ class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
   late final Animation<double> _anim;
-
-  bool _navigated = false; // 👈 guard para evitar doble navegación
+  bool _navigated = false; // evita doble navegación
 
   @override
   void initState() {
@@ -34,9 +32,9 @@ class _SplashScreenState extends State<SplashScreen>
     if (!mounted || _navigated) return;
     _navigated = true;
 
-    // ⚠️ Esta es la ÚNICA creación del Home con el GlobalKey
+    // ⚠️ Única creación del Home con GlobalKey (usado por PushService)
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => MyHomePage(key: homeKey)),
+      MaterialPageRoute(builder: (_) => HomePage(key: homeKey)),
     );
   }
 
@@ -48,12 +46,13 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
     return WillPopScope(
-      onWillPop: () async => false, // bloquea back en el splash
+      onWillPop: () async => false, // bloquea botón atrás
       child: Scaffold(
-        body: Container(
-          color: const Color.fromARGB(255, 245, 245, 245),
-          alignment: Alignment.center,
+        backgroundColor: scheme.surface,
+        body: Center(
           child: FadeTransition(
             opacity: _anim,
             child: ScaleTransition(
@@ -61,16 +60,32 @@ class _SplashScreenState extends State<SplashScreen>
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // Logo principal
                   Image.asset(
                     'assets/Primerfoot_icon.png',
                     width: 120,
                     height: 120,
                   ),
                   const SizedBox(height: 20),
-                  const Text(
+                  Text(
                     'PremierFootball',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.bold,
+                      color: scheme.primary,
+                      letterSpacing: 0.8,
+                    ),
                   ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Noticias y Partidos en tiempo real',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 40),
+                  const CircularProgressIndicator(strokeWidth: 2.5),
                 ],
               ),
             ),

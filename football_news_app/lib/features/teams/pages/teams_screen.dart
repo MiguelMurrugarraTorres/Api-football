@@ -4,9 +4,10 @@ import 'package:flutter/material.dart';
 
 import 'package:football_news_app/data/models/team.dart';
 import 'package:football_news_app/data/services/api_service.dart';
+import 'package:football_news_app/features/home/pages/home_page.dart';
 import 'package:football_news_app/features/home/widgets/bottom_navigation_widget.dart';
 import 'package:football_news_app/features/webview/pages/in_app_webview_page.dart';
-import 'package:football_news_app/main.dart';
+
 
 class TeamsScreen extends StatefulWidget {
   const TeamsScreen({super.key});

@@ -1,8 +1,9 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:football_news_app/data/models/article.dart';
+import 'package:football_news_app/features/home/pages/home_page.dart';
 import 'package:football_news_app/features/webview/pages/in_app_webview_page.dart';
-import 'package:football_news_app/main.dart';
+
 
 /// PNG transparente 1x1 para el fade-in
 final Uint8List _kTransparentImage = Uint8List.fromList([

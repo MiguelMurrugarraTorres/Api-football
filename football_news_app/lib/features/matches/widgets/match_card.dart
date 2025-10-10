@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:football_news_app/data/models/match.dart';
+import 'package:football_news_app/features/home/pages/home_page.dart';
 import 'package:football_news_app/features/matches/widgets/status_kind.dart';
 import 'package:football_news_app/features/matches/widgets/status_pill.dart';
 import 'package:football_news_app/features/matches/widgets/team_row.dart';
 import 'package:football_news_app/features/webview/pages/in_app_webview_page.dart';
-import 'package:football_news_app/main.dart';
 
 class MatchCard extends StatelessWidget {
   final MatchItem item;

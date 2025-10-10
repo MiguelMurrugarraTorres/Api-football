@@ -1,8 +1,12 @@
 name: football_news_app
-description: A new Flutter project.
+description: >
+  PremierFootball — Noticias, partidos y resultados en tiempo real.
+  La app oficial de PideloPE para los fanáticos del fútbol.
 
-publish_to: 'none'
-version: 1.0.5+8
+publish_to: "none"
+
+# 📦 Versión: (major.minor.patch+build)
+version: 1.0.8+11
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
@@ -11,53 +15,49 @@ dependencies:
   flutter:
     sdk: flutter
 
+  # 🎨 UI / Material
   cupertino_icons: ^1.0.2
+  flutter_localizations:
+    sdk: flutter
+
+  # 🌐 HTTP / API
   http: ^1.1.0
-  url_launcher: ^6.2.4 # Deja la versión principal intacta
-  shared_preferences: ^2.2.4 # Versión actualizada
-  pull_to_refresh: ^2.0.0
-  webview_flutter: ^4.4.2 # Deja la versión principal intacta
+  url_launcher: ^6.2.4
+  webview_flutter: ^4.4.2
+
+  # 💾 Almacenamiento local
+  shared_preferences: ^2.2.3
+
+  # 🔔 Notificaciones
   firebase_core: ^2.27.0
   firebase_messaging: ^14.7.10
   flutter_local_notifications: ^17.1.2
+
+  # 🧩 Utilidades
   uuid: ^4.4.0
-  intl: ^0.19.0
+  intl: ^0.18.1
+
+  # 🌀 Pull-to-refresh (si lo usas en alguna vista)
+  pull_to_refresh: ^2.0.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^6.0.0
-  flutter_launcher_icons: ^0.14.4
-  
+  flutter_lints: ^2.0.3
+  flutter_launcher_icons: ^0.13.1
 
+# 🧠 Configuración de íconos
 flutter_icons:
   android: "launcher_icon"
   ios: true
   image_path: "assets/Primerfoot_icon.png"
   image_path_ios: "assets/Primerfoot_icon.png"
-  # adaptive_icon_background: "#FFFFFF"
-  # adaptive_icon_foreground: "assets/icon_fg.png"
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/Primerfoot_icon.png"
 
+# 🎨 Configuración global Flutter
 flutter:
   uses-material-design: true
+
   assets:
     - assets/Primerfoot_icon.png
-
-# =========================================================
-# === INYECCIÓN DE COMPATIBILIDAD (DEPENDENCY_OVERRIDES) ===
-# =========================================================
-# Forzamos la instalación de versiones de plugins que ya migraron al V2 Embedding
-# para evitar el error 'Registrar' (V1 Embedding).
-
-dependency_overrides:
-  # Para el error de 'win32'
-  win32: ^5.0.0 
-  
-  # Para el error de 'shared_preferences'
-  shared_preferences_android: ^2.2.4 
-  
-  # Para el error de 'url_launcher'
-  url_launcher_android: ^6.3.23 
-  
-  # Para el error de 'webview_flutter'
-  webview_flutter_android: ^4.10.3
