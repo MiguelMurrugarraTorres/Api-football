@@ -4,85 +4,15 @@ import 'package:football_news_app/data/models/article.dart';
 import 'package:football_news_app/features/webview/pages/in_app_webview_page.dart';
 import 'package:football_news_app/main.dart';
 
-// PNG transparente 1x1 para efecto fade-in sin libs extra
-final Uint8List _kTransparentImage = Uint8List.fromList(
-  [
-    0x89,
-    0x50,
-    0x4E,
-    0x47,
-    0x0D,
-    0x0A,
-    0x1A,
-    0x0A,
-    0x00,
-    0x00,
-    0x00,
-    0x0D,
-    0x49,
-    0x48,
-    0x44,
-    0x52,
-    0x00,
-    0x00,
-    0x00,
-    0x01,
-    0x00,
-    0x00,
-    0x00,
-    0x01,
-    0x08,
-    0x06,
-    0x00,
-    0x00,
-    0x00,
-    0x1F,
-    0x15,
-    0xC4,
-    0x89,
-    0x00,
-    0x00,
-    0x00,
-    0x0A,
-    0x49,
-    0x44,
-    0x41,
-    0x54,
-    0x78,
-    0x9C,
-    0x63,
-    0x00,
-    0x01,
-    0x00,
-    0x00,
-    0x05,
-    0x00,
-    0x01,
-    0x0D,
-    0x0A,
-    0x2D,
-    0xB4,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x49,
-    0x45,
-    0x4E,
-    0x44,
-    0xAE,
-    0x42,
-    0x60,
-    0x82
-  ],
-);
+/// PNG transparente 1x1 para el fade-in
+final Uint8List _kTransparentImage = Uint8List.fromList([
+  0x89,0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A,0x00,0x00,0x00,0x0D,0x49,0x48,0x44,0x52,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x01,0x08,0x06,0x00,0x00,0x00,0x1F,0x15,0xC4,0x89,0x00,0x00,0x00,0x0A,0x49,0x44,0x41,0x54,0x78,0x9C,0x63,0x00,0x01,0x00,0x00,0x05,0x00,0x01,0x0D,0x0A,0x2D,0xB4,0x00,0x00,0x00,0x00,0x49,0x45,0x4E,0x44,0xAE,0x42,0x60,0x82
+]);
 
 String _normalizeUrl(String link) {
   final l = link.trim();
   if (l.isEmpty) return '';
-  return (l.startsWith('http://') || l.startsWith('https://'))
-      ? l
-      : 'https://$l';
+  return (l.startsWith('http://') || l.startsWith('https://')) ? l : 'https://$l';
 }
 
 class FirstArticleWidget extends StatelessWidget {
@@ -90,62 +20,72 @@ class FirstArticleWidget extends StatelessWidget {
 
   const FirstArticleWidget({super.key, required this.article});
 
+  bool get _isTappable => article.videoLink.isNotEmpty;
+
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+
     return Card(
-      elevation: 4,
+      elevation: 0,
+      color: scheme.surface,
       margin: const EdgeInsets.all(12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: scheme.outlineVariant),
+      ),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () {
-          if (article.videoLink.isNotEmpty) {
-            _launchURL(context, article.videoLink);
-          }
-          // Si en el futuro agregas article.url, puedes hacer:
-          // else if (article.url?.isNotEmpty == true) { _launchURL(context, article.url!); }
-        },
+        onTap: _isTappable ? () => _launchURL(context, article.videoLink) : null,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Etiqueta "Top News" con colores del tema
             const TopNewsLabel(),
+
             if (article.imageUrl.isNotEmpty)
               ClipRRect(
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(16)),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
                 child: AspectRatio(
                   aspectRatio: 16 / 9,
                   child: FadeInImage.memoryNetwork(
                     placeholder: _kTransparentImage,
                     image: article.imageUrl,
                     fit: BoxFit.cover,
-                    imageErrorBuilder: (_, __, ___) => const SizedBox(),
+                    imageErrorBuilder: (_, __, ___) => Container(color: scheme.surfaceVariant),
                   ),
                 ),
               ),
+
             Padding(
               padding: const EdgeInsets.all(12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Título
                   Text(
                     article.title,
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(fontWeight: FontWeight.bold),
+                    style: text.titleLarge?.copyWith(fontWeight: FontWeight.w800),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     semanticsLabel: article.title,
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    article.preview,
-                    style: Theme.of(context).textTheme.bodySmall,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 12),
+
+                  // Preview
+                  if (article.preview.isNotEmpty) ...[
+                    Text(
+                      article.preview,
+                      style: text.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+
+                  // Footer
                   ArticleFooter(article: article),
                 ],
               ),
@@ -193,14 +133,34 @@ class TopNewsLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.only(left: 12, top: 12),
-      child: Row(
-        children: [
-          Icon(Icons.whatshot, color: Colors.red),
-          SizedBox(width: 8),
-          Text('Top News', style: TextStyle(fontWeight: FontWeight.bold)),
-        ],
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+
+    return Padding(
+      padding: const EdgeInsets.only(left: 12, top: 12, right: 12, bottom: 6),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: scheme.primaryContainer,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.whatshot, color: scheme.onPrimaryContainer, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                'Top News',
+                style: text.labelMedium?.copyWith(
+                  color: scheme.onPrimaryContainer,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: .2,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -214,17 +174,14 @@ class ArticleFooter extends StatelessWidget {
   String _friendlyTime() {
     if (article.publishedTimeText.isNotEmpty) return article.publishedTimeText;
 
-    // Fallback básico: si publishedTime parece epoch en segundos o ms
     final t = article.publishedTime;
     if (t > 0) {
       final now = DateTime.now();
       DateTime? dt;
       if (t > 1000000000000) {
-        // milisegundos
-        dt = DateTime.fromMillisecondsSinceEpoch(t);
+        dt = DateTime.fromMillisecondsSinceEpoch(t); // ms
       } else if (t > 1000000000) {
-        // segundos
-        dt = DateTime.fromMillisecondsSinceEpoch(t * 1000);
+        dt = DateTime.fromMillisecondsSinceEpoch(t * 1000); // s
       }
       if (dt != null) {
         final diff = now.difference(dt);
@@ -238,8 +195,12 @@ class ArticleFooter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+
     return Row(
       children: [
+        // Logo fuente
         if (article.imageUrlPublished.isNotEmpty)
           ClipOval(
             child: Image.network(
@@ -247,35 +208,58 @@ class ArticleFooter extends StatelessWidget {
               width: 20,
               height: 20,
               fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => const SizedBox(),
+              errorBuilder: (context, error, stackTrace) => _dot(scheme),
             ),
-          ),
-        if (article.imageUrlPublished.isNotEmpty) const SizedBox(width: 5),
+          )
+        else
+          _dot(scheme),
+
+        const SizedBox(width: 8),
+
+        // Nombre fuente
         Flexible(
           child: Text(
             article.source,
-            style: Theme.of(context).textTheme.labelSmall,
+            style: text.labelLarge,
             overflow: TextOverflow.ellipsis,
           ),
         ),
         const SizedBox(width: 10),
+
+        // Tiempo
         Text(
           _friendlyTime(),
-          style: Theme.of(context).textTheme.labelSmall,
+          style: text.labelSmall?.copyWith(color: scheme.onSurfaceVariant),
         ),
+
         const Spacer(),
+
+        // CTA
         if (article.videoLink.isNotEmpty)
           TextButton(
-            onPressed: () => _launchURL(context, article.videoLink),
-            child: const Text('Ver video', style: TextStyle(fontSize: 10)),
+            onPressed: () {
+              final parent = context.findAncestorWidgetOfExactType<FirstArticleWidget>();
+              parent?._launchURL(context, article.videoLink);
+            },
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              foregroundColor: scheme.primary,
+              textStyle: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            child: const Text('Ver video', style: TextStyle(fontSize: 12)),
           ),
       ],
     );
   }
 
-  void _launchURL(BuildContext context, String url) {
-    // Reusa el método del widget principal (misma unidad de compilación, permite llamada a método privado)
-    final parent = context.findAncestorWidgetOfExactType<FirstArticleWidget>();
-    parent?._launchURL(context, url);
-  }
+  Widget _dot(ColorScheme scheme) => SizedBox(
+        width: 20,
+        height: 20,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: scheme.surfaceVariant,
+            shape: BoxShape.circle,
+          ),
+        ),
+      );
 }

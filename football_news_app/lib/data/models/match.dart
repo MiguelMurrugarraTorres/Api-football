@@ -5,11 +5,11 @@ class MatchItem {
 
   final String compName;
   final String compSlug;
+  final String compLogoUrl; // 👈 NEW
   final String roundText;
 
-  /// Puede venir ISO completo en la API actual
-  final String dateKey;      // ej. "2025-10-09T00:00:00.000Z" o "YYYY-MM-DD"
-  final String kickoffUtc;   // ISO (preferente) o "HH:mm"
+  final String dateKey;    // ISO o YYYY-MM-DD
+  final String kickoffUtc; // ISO o "HH:mm"
 
   final String homeName;
   final String awayName;
@@ -19,22 +19,19 @@ class MatchItem {
   final int? homeScore;
   final int? awayScore;
 
-  /// Estado corto o código
   final String status;
-
-  /// Texto amigable. Puede venir vacío o null (→ lo tratamos como suspendido si score 0-0)
   final String statusText;
 
-  /// NUEVO: si está en vivo
-  final String? liveMinuteText; // ej. "83'"
-  final int? liveMinute;        // ej. 83
-  final String? period;         // ej. "1H", "2H", "HT", etc.
+  final String? liveMinuteText;
+  final int? liveMinute;
+  final String? period;
 
   const MatchItem({
     required this.matchSlug,
     required this.href,
     required this.compName,
     required this.compSlug,
+    required this.compLogoUrl, // 👈 NEW
     required this.roundText,
     required this.dateKey,
     required this.kickoffUtc,
@@ -61,11 +58,19 @@ class MatchItem {
 
     String _str(dynamic v) => (v ?? '').toString();
 
+    // Fallback de logo de competición si viene null/empty
+    const _fallbackCompLogo =
+        'https://image-service.onefootball.com/transform?w=128&dpr=2&image=https://images.onefootball.com/icons/leagueColoredCompetition/128/140.png';
+
+    final compLogo = _str(json['comp_logo_url']).trim();
+    final compLogoFinal = compLogo.isEmpty ? _fallbackCompLogo : compLogo;
+
     return MatchItem(
       matchSlug: _str(json['match_slug']),
       href: _str(json['href']),
       compName: _str(json['comp_name']),
       compSlug: _str(json['comp_slug']),
+      compLogoUrl: compLogoFinal, // 👈 NEW
       roundText: _str(json['round_text']),
       dateKey: _str(json['date_key']),
       kickoffUtc: _str(json['kickoff_utc']),
@@ -88,6 +93,7 @@ class MatchItem {
         'href': href,
         'comp_name': compName,
         'comp_slug': compSlug,
+        'comp_logo_url': compLogoUrl, // 👈 NEW
         'round_text': roundText,
         'date_key': dateKey,
         'kickoff_utc': kickoffUtc,

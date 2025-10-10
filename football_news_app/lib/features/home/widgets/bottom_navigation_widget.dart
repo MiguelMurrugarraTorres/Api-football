@@ -1,4 +1,3 @@
-// lib/features/home/widgets/bottom_navigation_widget.dart
 import 'package:flutter/material.dart';
 
 class BottomNavigationWidget extends StatelessWidget {
@@ -17,24 +16,22 @@ class BottomNavigationWidget extends StatelessWidget {
 
   // 🔒 Estático: estos son los módulos fijos
   static const _items = <_NavItem>[
-    _NavItem(label: 'Inicio',        icon: Icons.home,             route: '/home'),
-    _NavItem(label: 'Partidos',      icon: Icons.sports_soccer,    route: '/matches'),
-    _NavItem(label: 'Equipos',       icon: Icons.group,            route: '/teams'),
-    _NavItem(label: 'Competiciones', icon: Icons.emoji_events,     route: '/competitions'),
+    _NavItem(label: 'Inicio',        icon: Icons.home,                  route: '/home'),
+    _NavItem(label: 'Partidos',      icon: Icons.sports_soccer,         route: '/matches'),
+    _NavItem(label: 'Equipos',       icon: Icons.group,                 route: '/teams'),
+    _NavItem(label: 'Competiciones', icon: Icons.emoji_events,          route: '/competitions'),
     _NavItem(label: 'Apuestas',      icon: Icons.currency_bitcoin_outlined, route: '/bets'),
   ];
 
   String _normalize(String s) => s.trim().toLowerCase();
 
   int _currentIndex() {
-    // Si nos pasan label, priorizamos eso
     if (selectedLabel != null) {
       final i = _items.indexWhere(
         (e) => _normalize(e.label) == _normalize(selectedLabel!),
       );
       if (i != -1) return i;
     }
-    // Si no, usamos el índice provisto (clamp por seguridad)
     return selectedIndex.clamp(0, _items.length - 1);
   }
 
@@ -42,7 +39,7 @@ class BottomNavigationWidget extends StatelessWidget {
     final item = _items[index];
     final labelNorm = _normalize(item.label);
 
-    // Para Home dejamos también que el padre mueva el stack si lo necesita
+    // Permite que Home maneje su propio stack si lo necesita
     if (labelNorm == 'inicio') {
       onItemTapped(index);
     }
@@ -54,23 +51,38 @@ class BottomNavigationWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final curr = _currentIndex();
+    final scheme = Theme.of(context).colorScheme;
 
-    return BottomNavigationBar(
-      type: BottomNavigationBarType.fixed,
-      showSelectedLabels: true,
-      showUnselectedLabels: true,
-      items: _items
-          .map(
-            (e) => BottomNavigationBarItem(
-              icon: Icon(e.icon),
-              label: e.label,
-            ),
-          )
-          .toList(),
-      currentIndex: curr,
-      selectedItemColor: Colors.black,
-      unselectedItemColor: Colors.grey,
-      onTap: (i) => _handleTap(context, i),
+    return SafeArea(
+      top: false,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+      // Línea sutil superior que respeta el tema
+          Divider(height: 1, thickness: 1, color: scheme.outlineVariant),
+          BottomNavigationBar(
+            type: BottomNavigationBarType.fixed,
+            backgroundColor: scheme.surface,
+            selectedItemColor: scheme.primary,
+            unselectedItemColor: scheme.onSurfaceVariant,
+            selectedIconTheme: IconThemeData(color: scheme.primary),
+            unselectedIconTheme: IconThemeData(color: scheme.onSurfaceVariant),
+            selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600),
+            showSelectedLabels: true,
+            showUnselectedLabels: true,
+            items: _items
+                .map(
+                  (e) => BottomNavigationBarItem(
+                    icon: Icon(e.icon),
+                    label: e.label,
+                  ),
+                )
+                .toList(),
+            currentIndex: curr,
+            onTap: (i) => _handleTap(context, i),
+          ),
+        ],
+      ),
     );
   }
 }

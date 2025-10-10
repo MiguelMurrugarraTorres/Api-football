@@ -3,7 +3,7 @@ import 'package:football_news_app/data/models/article.dart';
 
 class ArticleCardWidget extends StatelessWidget {
   final Article article;
-  final void Function(String) openWebView; // callback simple (no cambia firma)
+  final void Function(String) openWebView; // callback simple
 
   const ArticleCardWidget({
     super.key,
@@ -11,64 +11,71 @@ class ArticleCardWidget extends StatelessWidget {
     required this.openWebView,
   });
 
+  bool get _isTappable => article.videoLink.isNotEmpty;
+
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: () {
-        if (article.videoLink.isNotEmpty) {
-          openWebView(article.videoLink); // el título lo inyecta el padre
-        }
-      },
-      child: Card(
-        color: Colors.white,
-        margin: const EdgeInsets.all(5),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        clipBehavior: Clip.antiAlias,
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Card(
+      elevation: 0,
+      color: scheme.surface,
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: scheme.outlineVariant),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: _isTappable ? () => openWebView(article.videoLink) : null,
         child: Padding(
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.all(12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Título + imagen
+              // Título + miniatura
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Título
                   Expanded(
                     child: Text(
                       article.title,
-                      textAlign: TextAlign.start,
                       maxLines: 3,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
+                      style: textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                   ),
-                  if (article.imageUrl.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(left: 12),
-                      child: SizedBox(
-                        width: 80,
-                        height: 72,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.network(
-                            article.imageUrl,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) =>
-                                Container(color: Colors.grey.shade200),
+                  // Miniatura (opcional)
+                  if (article.imageUrl.isNotEmpty) ...[
+                    const SizedBox(width: 12),
+                    SizedBox(
+                      width: 96,
+                      height: 80,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Image.network(
+                          article.imageUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            color: scheme.surfaceVariant,
                           ),
                         ),
                       ),
                     ),
+                  ],
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
 
-              // Footer (fuente, tiempo, botón Ver)
+              // Footer: fuente + tiempo + CTA
               Row(
                 children: [
+                  // Logo fuente
                   if (article.imageUrlPublished.isNotEmpty)
                     ClipOval(
                       child: Image.network(
@@ -77,31 +84,48 @@ class ArticleCardWidget extends StatelessWidget {
                         height: 20,
                         fit: BoxFit.cover,
                         errorBuilder: (_, __, ___) =>
-                            const SizedBox(width: 20, height: 20),
+                            SizedBox(width: 20, height: 20, child: _dot(scheme)),
                       ),
                     )
                   else
-                    const SizedBox(width: 20, height: 20),
+                    SizedBox(width: 20, height: 20, child: _dot(scheme)),
                   const SizedBox(width: 8),
-                  Text(
-                    article.source,
-                    style: const TextStyle(fontSize: 12),
-                    overflow: TextOverflow.ellipsis,
+
+                  // Nombre fuente
+                  Flexible(
+                    child: Text(
+                      article.source,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: textTheme.labelLarge,
+                    ),
                   ),
                   const SizedBox(width: 10),
+
+                  // Tiempo
                   Text(
                     article.publishedTimeText.isNotEmpty
                         ? article.publishedTimeText
                         : 'Hace ${article.publishedTime} h',
-                    style: const TextStyle(color: Colors.grey, fontSize: 10),
+                    style: textTheme.labelSmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
                   ),
+
                   const Spacer(),
-                  if (article.videoLink.isNotEmpty)
+
+                  // CTA
+                  if (_isTappable)
                     TextButton(
-                      onPressed: () {
-                        debugPrint("[DEBUG] Abriendo URL: ${article.videoLink}");
-                        openWebView(article.videoLink); // el título lo inyecta el padre
-                      },
+                      onPressed: () => openWebView(article.videoLink),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        foregroundColor: scheme.primary,
+                        textStyle: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
                       child: const Text('Ver'),
                     ),
                 ],
@@ -112,4 +136,11 @@ class ArticleCardWidget extends StatelessWidget {
       ),
     );
   }
+
+  Widget _dot(ColorScheme scheme) => Container(
+        decoration: BoxDecoration(
+          color: scheme.surfaceVariant,
+          shape: BoxShape.circle,
+        ),
+      );
 }

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:football_news_app/data/models/article.dart';
 import 'package:football_news_app/data/services/api_service.dart';
 import 'package:football_news_app/features/home/widgets/bottom_navigation_widget.dart';
-import 'package:football_news_app/features/webview/pages/in_app_webview_page.dart'; // Asegúrate de importar la página de WebView
+import 'package:football_news_app/features/webview/pages/in_app_webview_page.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -17,11 +17,11 @@ class _SearchScreenState extends State<SearchScreen> {
 
   bool _isSearching = false;
 
-  // Resultados de búsqueda
+  // Resultados
   List<Map<String, dynamic>> teams = [];
   List<Map<String, dynamic>> news = [];
 
-  // Sugerencias desde cache (artículos)
+  // Sugerencias
   List<Article> suggestions = [];
   bool _loadedSuggestions = false;
 
@@ -41,20 +41,16 @@ class _SearchScreenState extends State<SearchScreen> {
 
   Future<void> _loadSuggestions() async {
     try {
-      // Cargamos hasta 10 sugerencias desde el cache
       final cached = await apiService.getCachedArticles(limit: 10);
-      // Filtra artículos sin link utilizable
-      final usable =
-          cached.where((a) => (a.videoLink).trim().isNotEmpty).toList();
+      final usable = cached.where((a) => a.videoLink.trim().isNotEmpty).toList();
       if (!mounted) return;
       setState(() {
         suggestions = usable;
         _loadedSuggestions = true;
       });
     } catch (e) {
-      debugPrint('Error loading suggestions: $e');
       if (!mounted) return;
-      setState(() => _loadedSuggestions = true); // evita spinner infinito
+      setState(() => _loadedSuggestions = true);
     }
   }
 
@@ -75,7 +71,6 @@ class _SearchScreenState extends State<SearchScreen> {
         _isSearching = false;
       });
     } catch (e) {
-      debugPrint('Error searching: $e');
       if (!mounted) return;
       setState(() => _isSearching = false);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -84,8 +79,8 @@ class _SearchScreenState extends State<SearchScreen> {
     }
   }
 
-  // Devolver {url, title} al WebView directamente
-  void _returnResult({required String url, required String title}) {
+  // Abre WebView directamente (en esta pantalla)
+  void _openInlineWeb(String url, {required String title}) {
     final link = url.trim();
     if (link.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -93,110 +88,146 @@ class _SearchScreenState extends State<SearchScreen> {
       );
       return;
     }
-
     final normalized =
-        (link.startsWith('http://') || link.startsWith('https://'))
-            ? link
-            : 'https://$link';
+        (link.startsWith('http://') || link.startsWith('https://')) ? link : 'https://$link';
 
-    // Abre el WebView directamente en la misma pantalla de búsqueda
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) =>
-            InAppWebViewPage(uri: Uri.parse(normalized), title: title),
+        builder: (_) => InAppWebViewPage(uri: Uri.parse(normalized), title: title),
       ),
     );
   }
 
-  Widget _buildTeamCard(Map<String, dynamic> team) {
+  // ==== UI helpers ====
+
+  Widget _sectionHeader(BuildContext context, String text) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 16, 12, 8),
+      child: Text(
+        text,
+        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+      ),
+    );
+  }
+
+  Widget _teamTile(BuildContext context, Map<String, dynamic> team) {
+    final scheme = Theme.of(context).colorScheme;
     final String title = (team['text'] ?? '').toString();
     final String? img = team['img'] as String?;
     final String link = (team['link'] ?? '').toString();
 
     return ListTile(
-      leading: img != null && img.isNotEmpty
-          ? Image.network(
-              img,
-              width: 50,
-              height: 50,
-              errorBuilder: (_, __, ___) => const Icon(Icons.group),
+      leading: (img != null && img.isNotEmpty)
+          ? ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: Image.network(
+                img,
+                width: 44,
+                height: 44,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => _squarePlaceholder(scheme),
+              ),
             )
-          : const Icon(Icons.group),
+          : _squarePlaceholder(scheme),
       title: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis),
-      onTap: () => _returnResult(url: link, title: title),
+      onTap: () => _openInlineWeb(link, title: title),
     );
   }
 
-  Widget _buildNewsCard(Map<String, dynamic> newsItem) {
-    final String title = (newsItem['text'] ?? '').toString();
-    final String? img = newsItem['img'] as String?;
-    final String link = (newsItem['link'] ?? '').toString();
+  Widget _newsTile(BuildContext context, Map<String, dynamic> item) {
+    final scheme = Theme.of(context).colorScheme;
+    final String title = (item['text'] ?? '').toString();
+    final String? img = item['img'] as String?;
+    final String link = (item['link'] ?? '').toString();
 
     return ListTile(
-      leading: img != null && img.isNotEmpty
-          ? Image.network(
-              img,
-              width: 50,
-              height: 50,
-              errorBuilder: (_, __, ___) => const Icon(Icons.article),
+      leading: (img != null && img.isNotEmpty)
+          ? ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: Image.network(
+                img,
+                width: 44,
+                height: 44,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => _squarePlaceholder(scheme),
+              ),
             )
-          : const Icon(Icons.article),
+          : _squarePlaceholder(scheme),
       title: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis),
-      onTap: () => _returnResult(url: link, title: title),
+      onTap: () => _openInlineWeb(link, title: title),
     );
   }
 
-  // Sugerencias desde cache (artículos)
-  Widget _buildSuggestionTile(Article a) {
+  Widget _suggestionTile(BuildContext context, Article a) {
+    final scheme = Theme.of(context).colorScheme;
+
     return ListTile(
       leading: (a.imageUrl.isNotEmpty)
-          ? Image.network(
-              a.imageUrl,
-              width: 50,
-              height: 50,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => const Icon(Icons.image_outlined),
+          ? ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: Image.network(
+                a.imageUrl,
+                width: 44,
+                height: 44,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => _squarePlaceholder(scheme),
+              ),
             )
-          : const Icon(Icons.image_outlined),
-      title: Text(
-        a.title,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-      ),
-      subtitle: Text(
-        a.source,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(fontSize: 12),
-      ),
-      onTap: () => _returnResult(url: a.videoLink, title: a.title),
+          : _squarePlaceholder(scheme),
+      title: Text(a.title, maxLines: 2, overflow: TextOverflow.ellipsis),
+      subtitle: (a.source.isNotEmpty)
+          ? Text(
+              a.source,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelSmall,
+            )
+          : null,
+      onTap: () => _openInlineWeb(a.videoLink, title: a.title),
     );
   }
+
+  Widget _squarePlaceholder(ColorScheme scheme) => Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: scheme.surfaceVariant,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Icon(Icons.image_outlined, color: scheme.onSurfaceVariant, size: 20),
+      );
 
   void _onBottomItemTapped(int index) {
     setState(() => _selectedIndexBottom = index);
-    if (index != 0) {
-      Navigator.of(context).pop();
-    }
+    if (index != 0) Navigator.of(context).pop();
   }
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final hasResults = teams.isNotEmpty || news.isNotEmpty;
 
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
         titleSpacing: 0,
-        title: TextField(
-          controller: _searchController,
-          onSubmitted: _search,
-          textInputAction: TextInputAction.search,
-          decoration: const InputDecoration(
-            hintText: 'Escribe algo...',
-            border: InputBorder.none,
-            contentPadding: EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+        title: Container(
+          margin: const EdgeInsets.only(right: 8),
+          decoration: BoxDecoration(
+            color: scheme.surfaceVariant,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: TextField(
+            controller: _searchController,
+            onSubmitted: _search,
+            textInputAction: TextInputAction.search,
+            decoration: const InputDecoration(
+              hintText: 'Escribe algo...',
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+            ),
           ),
         ),
         actions: [
@@ -218,7 +249,7 @@ class _SearchScreenState extends State<SearchScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('CANCELAR', style: TextStyle(color: Colors.blue)),
+            child: Text('CANCELAR', style: TextStyle(color: scheme.primary, fontWeight: FontWeight.w700)),
           ),
         ],
       ),
@@ -230,31 +261,14 @@ class _SearchScreenState extends State<SearchScreen> {
                   child: ListView(
                     children: [
                       if (teams.isNotEmpty) ...[
-                        const Padding(
-                          padding: EdgeInsets.all(8.0),
-                          child: Text(
-                            'EQUIPOS',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18,
-                            ),
-                          ),
-                        ),
-                        ...teams.map(_buildTeamCard),
+                        _sectionHeader(context, 'EQUIPOS'),
+                        ...teams.map((t) => _teamTile(context, t)),
                       ],
                       if (news.isNotEmpty) ...[
-                        const Padding(
-                          padding: EdgeInsets.all(8.0),
-                          child: Text(
-                            'NOTICIAS',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18,
-                            ),
-                          ),
-                        ),
-                        ...news.map(_buildNewsCard),
+                        _sectionHeader(context, 'NOTICIAS'),
+                        ...news.map((n) => _newsTile(context, n)),
                       ],
+                      const SizedBox(height: 12),
                     ],
                   ),
                 )
@@ -263,32 +277,28 @@ class _SearchScreenState extends State<SearchScreen> {
                       onRefresh: () async => _loadSuggestions(),
                       child: ListView(
                         children: [
-                          const Padding(
-                            padding: EdgeInsets.all(8.0),
-                            child: Text(
-                              'SUGERENCIAS',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 18,
-                              ),
-                            ),
-                          ),
-                          ...suggestions.map(_buildSuggestionTile),
+                          _sectionHeader(context, 'SUGERENCIAS'),
+                          ...suggestions.map((a) => _suggestionTile(context, a)),
                           const SizedBox(height: 24),
-                          const Center(
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
                             child: Text(
                               'Tip: usa el buscador para encontrar equipos o noticias específicas',
-                              style: TextStyle(color: Colors.black54),
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: scheme.onSurfaceVariant),
                             ),
                           ),
                           const SizedBox(height: 24),
                         ],
                       ),
                     )
-                  : const Center(
-                      child: Text(
-                        'Busca equipos o noticias',
-                        style: TextStyle(color: Colors.black54),
+                  : Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Text(
+                          'Busca equipos o noticias',
+                          style: TextStyle(color: scheme.onSurfaceVariant),
+                        ),
                       ),
                     ),
       bottomNavigationBar: BottomNavigationWidget(

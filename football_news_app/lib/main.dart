@@ -5,6 +5,8 @@ import 'dart:io' as io;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart'; // 👈 localizations
+import 'package:football_news_app/app/theme/app_theme.dart';
 import 'package:football_news_app/features/teams/pages/teams_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -50,6 +52,27 @@ class MyHttpOverrides extends io.HttpOverrides {
 /// GlobalKey para abrir el WebView del Home desde PushService (solo una vez)
 final GlobalKey<MyHomePageState> homeKey = GlobalKey<MyHomePageState>();
 
+Future<void> _initIntlLocales() async {
+  // Idiomas soportados por la app (prioridad hispana, pero global-ready)
+  const localesToPreload = ['es', 'en', 'pt', 'fr'];
+
+  // Set defaultLocale según el dispositivo, fallback a 'es'
+  final deviceLocale = WidgetsBinding.instance.platformDispatcher.locale;
+  final deviceLang =
+      (deviceLocale.languageCode.isNotEmpty) ? deviceLocale.languageCode : 'es';
+  Intl.defaultLocale =
+      localesToPreload.contains(deviceLang) ? deviceLang : 'es';
+
+  // Pre-cargar símbolos/formatos de fecha para los idiomas soportados
+  for (final l in localesToPreload) {
+    try {
+      await initializeDateFormatting(l, null);
+    } catch (_) {
+      // Si algún paquete de símbolos no está, continuamos sin romper
+    }
+  }
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   io.HttpOverrides.global = MyHttpOverrides(); // si lo usas en dev
@@ -58,9 +81,8 @@ Future<void> main() async {
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   await setupLocalNotifications();
 
-  // Intl
-  Intl.defaultLocale = 'es_PE';
-  await initializeDateFormatting('es_PE', null);
+  // Intl / Locales
+  await _initIntlLocales();
 
   runApp(const MyApp());
 }
@@ -89,18 +111,37 @@ class MyApp extends StatelessWidget {
       // Permisos + registro device
       push.initAndRegister();
     }
-
+    // azul marca (cámbialo después si deseas)
     return MaterialApp(
       title: 'Football News App',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.white,
-          foregroundColor: Colors.black,
-        ),
-      ),
-      home: const SplashScreen(), // Splash hará pushReplacement a MyHomePage(key: homeKey)
+
+      // 🌍 Localización global
+      supportedLocales: const [
+        Locale('es', ''), // Español (prioridad)
+        Locale('en', ''), // Inglés
+        Locale('pt', ''), // Portugués
+        Locale('fr', ''), // Francés
+      ],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      // Usa el idioma del dispositivo; si no está soportado, cae a español
+      localeResolutionCallback: (deviceLocale, supported) {
+        if (deviceLocale == null) return const Locale('es', '');
+        for (final sl in supported) {
+          if (sl.languageCode == deviceLocale.languageCode) return sl;
+        }
+        return const Locale('es', '');
+      },
+      theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
+      themeMode: ThemeMode.system,
+
+      home:
+          const SplashScreen(), // Splash hará pushReplacement a MyHomePage(key: homeKey)
 
       // En rutas NUNCA usamos homeKey para evitar duplicados.
       routes: {
@@ -116,9 +157,15 @@ class MyApp extends StatelessWidget {
                 selectedIndex: 0,
                 selectedLabel: 'Competiciones',
                 onItemTapped: (i) {
-                  if (i == 0) Navigator.of(context).popUntil((r) => r.isFirst); // Home
-                  if (i == 1) Navigator.of(context).pushReplacementNamed('/matches');
-                  if (i == 2) Navigator.of(context).pushReplacementNamed('/teams');
+                  if (i == 0) {
+                    Navigator.of(context).popUntil((r) => r.isFirst); // Home
+                  }
+                  if (i == 1) {
+                    Navigator.of(context).pushReplacementNamed('/matches');
+                  }
+                  if (i == 2) {
+                    Navigator.of(context).pushReplacementNamed('/teams');
+                  }
                   if (i == 3) {/* ya estás */}
                 },
               ),
@@ -130,9 +177,15 @@ class MyApp extends StatelessWidget {
                 selectedIndex: 0,
                 selectedLabel: 'Apuestas',
                 onItemTapped: (i) {
-                  if (i == 0) Navigator.of(context).popUntil((r) => r.isFirst); // Home
-                  if (i == 1) Navigator.of(context).pushReplacementNamed('/matches');
-                  if (i == 2) Navigator.of(context).pushReplacementNamed('/teams');
+                  if (i == 0) {
+                    Navigator.of(context).popUntil((r) => r.isFirst); // Home
+                  }
+                  if (i == 1) {
+                    Navigator.of(context).pushReplacementNamed('/matches');
+                  }
+                  if (i == 2) {
+                    Navigator.of(context).pushReplacementNamed('/teams');
+                  }
                   if (i == 3) {/* ya estás */}
                 },
               ),
@@ -264,7 +317,8 @@ class MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final displayed = articles.length > 7 ? articles.take(7).toList() : articles;
+    final displayed =
+        articles.length > 7 ? articles.take(7).toList() : articles;
 
     final String appBarTitle =
         _webUrl != null ? (_webTitle ?? 'PREMIERFOOTBALL') : 'PREMIERFOOTBALL';

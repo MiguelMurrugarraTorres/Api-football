@@ -53,7 +53,7 @@ class _AllArticlesScreenState extends State<AllArticlesScreen> {
     if (reset) _visible = [];
     final nextCount = (_visible.length + _pageSize).clamp(0, _all.length);
     _visible = _all.take(nextCount).toList();
-    setState(() {});
+    if (mounted) setState(() {});
   }
 
   Future<void> _refreshSilently() async {
@@ -62,8 +62,7 @@ class _AllArticlesScreenState extends State<AllArticlesScreen> {
       // Evita duplicados simples por URL si existe, si no por título.
       final seen = <String>{};
       _all = fresh.where((a) {
-        final key =
-            (a.imageUrl?.isNotEmpty == true ? a.imageUrl! : a.title).trim();
+        final key = (a.imageUrl?.isNotEmpty == true ? a.imageUrl! : a.title).trim();
         if (seen.contains(key)) return false;
         seen.add(key);
         return true;
@@ -73,7 +72,7 @@ class _AllArticlesScreenState extends State<AllArticlesScreen> {
     } catch (e) {
       // No bloqueamos UX; solo guardamos el error para mostrar si lista vacía
       _errorMsg = '$e';
-      if (_all.isEmpty) setState(() {}); // fuerza repaint si no hay nada
+      if (_all.isEmpty && mounted) setState(() {});
     }
   }
 
@@ -84,8 +83,7 @@ class _AllArticlesScreenState extends State<AllArticlesScreen> {
       final fresh = await apiService.fetchAllArticles();
       final seen = <String>{};
       _all = fresh.where((a) {
-        final key =
-            (a.imageUrl?.isNotEmpty == true ? a.imageUrl! : a.title).trim();
+        final key = (a.imageUrl?.isNotEmpty == true ? a.imageUrl! : a.title).trim();
         if (seen.contains(key)) return false;
         seen.add(key);
         return true;
@@ -164,6 +162,7 @@ class _AllArticlesScreenState extends State<AllArticlesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final showEmpty = _visible.isEmpty && !_isRefreshing && _errorMsg == null;
     final showError = _visible.isEmpty && _errorMsg != null;
 
@@ -183,13 +182,13 @@ class _AllArticlesScreenState extends State<AllArticlesScreen> {
               return ListView(
                 children: [
                   const SizedBox(height: 80),
-                  Icon(Icons.wifi_off, size: 56, color: Colors.grey.shade600),
+                  Icon(Icons.wifi_off, size: 56, color: scheme.onSurfaceVariant),
                   const SizedBox(height: 12),
                   Center(
                     child: Text(
                       'No se pudieron cargar las noticias.\n$_errorMsg',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey.shade700),
+                      style: TextStyle(color: scheme.onSurfaceVariant),
                     ),
                   ),
                 ],
@@ -200,13 +199,12 @@ class _AllArticlesScreenState extends State<AllArticlesScreen> {
               return ListView(
                 children: [
                   const SizedBox(height: 80),
-                  Icon(Icons.article_outlined,
-                      size: 56, color: Colors.grey.shade600),
+                  Icon(Icons.article_outlined, size: 56, color: scheme.onSurfaceVariant),
                   const SizedBox(height: 12),
                   Center(
                     child: Text(
                       'Aún no hay noticias para mostrar.',
-                      style: TextStyle(color: Colors.grey.shade700),
+                      style: TextStyle(color: scheme.onSurfaceVariant),
                     ),
                   ),
                 ],
@@ -224,8 +222,7 @@ class _AllArticlesScreenState extends State<AllArticlesScreen> {
                   final art = _visible[index];
                   return ArticleCardWidget(
                     article: art,
-                    openWebView: (url) =>
-                        _openWeb(context, url, title: art.title),
+                    openWebView: (url) => _openWeb(context, url, title: art.title),
                   );
                 }
                 // Loader al final
